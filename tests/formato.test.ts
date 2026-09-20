@@ -1,0 +1,43 @@
+import { describe, it, expect } from 'vitest'
+import { formatearUsd, formatearBs, formatearFecha, TITULOS_BALANCE } from '@/lib/formato'
+import { calcularBalance } from '@/lib/balance'
+
+describe('formatearUsd', () => {
+  it('usa coma decimal y siempre dos decimales', () => {
+    expect(formatearUsd(157.5)).toBe('$157,50')
+  })
+
+  it('usa punto para los miles', () => {
+    expect(formatearUsd(1234.56)).toBe('$1.234,56')
+  })
+
+  it('muestra el cero con decimales', () => {
+    expect(formatearUsd(0)).toBe('$0,00')
+  })
+})
+
+describe('formatearBs', () => {
+  it('pone el sufijo Bs', () => {
+    expect(formatearBs(1500)).toBe('1.500,00 Bs')
+  })
+})
+
+describe('formatearFecha', () => {
+  it('muestra día, mes abreviado y año', () => {
+    expect(formatearFecha('2026-09-20')).toBe('20 sep 2026')
+  })
+})
+
+describe('TITULOS_BALANCE', () => {
+  it('cuando sobra dinero, dice que está disponible', () => {
+    expect(TITULOS_BALANCE[calcularBalance([500], [342.5]).estado]).toBe('Disponible')
+  })
+
+  it('cuando Jose puso de lo suyo, lo dice a su favor', () => {
+    expect(TITULOS_BALANCE[calcularBalance([500], [642.5]).estado]).toBe('A favor de Jose')
+  })
+
+  it('cuando cuadra, dice que está al día', () => {
+    expect(TITULOS_BALANCE[calcularBalance([100], [100]).estado]).toBe('Al día')
+  })
+})
