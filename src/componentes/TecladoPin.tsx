@@ -1,11 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { iniciarSesion } from '@/app/entrar/acciones'
 
 const TECLAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '←']
 
+/** Mensaje para cuando ni siquiera llegó respuesta del servidor (red caída, etc.). */
+const ERROR_CONEXION = 'No se pudo conectar. Intenta de nuevo.'
+
 export function TecladoPin({ persona, alVolver }: { persona: string; alVolver: () => void }) {
+  const router = useRouter()
   const [pin, setPin] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -25,9 +30,23 @@ export function TecladoPin({ persona, alVolver }: { persona: string; alVolver: (
 
     if (nuevo.length === 6) {
       setEnviando(true)
-      const resultado = await iniciarSesion(persona, nuevo)
-      if (resultado?.error) {
-        setError(resultado.error)
+      try {
+        const resultado = await iniciarSesion(persona, nuevo)
+        if (resultado?.error) {
+          setError(resultado.error)
+          setPin('')
+          setEnviando(false)
+          return
+        }
+        // Éxito: la acción ya no redirige (redirect() dentro de una acción
+        // de servidor no se puede envolver en try/catch sin capturar
+        // también su propio mecanismo de control de flujo). Navegamos
+        // desde el cliente en su lugar.
+        router.push('/')
+      } catch {
+        // Un fallo que ni siquiera llegó a devolver { error } (red caída,
+        // Supabase inalcanzable, etc.): no se deja el teclado congelado.
+        setError(ERROR_CONEXION)
         setPin('')
         setEnviando(false)
       }
@@ -72,7 +91,11 @@ export function TecladoPin({ persona, alVolver }: { persona: string; alVolver: (
         ))}
       </div>
 
-      <button type="button" onClick={alVolver} className="text-sm text-slate-500 underline">
+      <button
+        type="button"
+        onClick={alVolver}
+        className="flex h-11 items-center px-2 text-sm text-slate-500 underline"
+      >
         No soy {persona}
       </button>
     </div>

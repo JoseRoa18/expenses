@@ -25,7 +25,7 @@ export async function refrescarSesion(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
   const ruta = request.nextUrl.pathname
-  const esPublica = RUTAS_PUBLICAS.some((p) => ruta.startsWith(p))
+  const esPublica = RUTAS_PUBLICAS.some((p) => ruta === p || ruta.startsWith(`${p}/`))
 
   if (!user && !esPublica) {
     const destino = request.nextUrl.clone()
