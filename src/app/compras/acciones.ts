@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
 import { parsearMonto } from '@/lib/montos'
+import { hoyVenezuela } from '@/lib/formato'
 
 type Resultado = { error: string | null; advertencia?: string; facturasFallidas?: number }
 
@@ -111,7 +112,7 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
       monto_bs: montoBs,
       monto_usd: montoUsd,
       notas,
-      fecha_compra: fechaCompra || new Date().toISOString().slice(0, 10),
+      fecha_compra: fechaCompra || hoyVenezuela(),
     })
     .select()
     .single()
@@ -155,7 +156,7 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
 
 export async function marcarEntregada(compraId: string): Promise<Resultado> {
   const supabase = await crearClienteServidor()
-  const hoy = new Date().toISOString().slice(0, 10)
+  const hoy = hoyVenezuela()
 
   const { data: compra, error } = await supabase
     .from('compras')

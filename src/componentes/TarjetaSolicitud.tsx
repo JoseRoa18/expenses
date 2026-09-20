@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { EtiquetaEstado } from '@/componentes/EtiquetaEstado'
 import { AccionesSolicitud } from '@/componentes/AccionesSolicitud'
 import { puedeEditar, puedeCancelar } from '@/lib/solicitudes'
-import { formatearFecha } from '@/lib/formato'
+import { formatearMarcaDeTiempo } from '@/lib/formato'
 import { cancelarSolicitud, editarSolicitud } from '@/app/solicitudes/acciones'
 import { ERROR_CONEXION } from '@/lib/errores'
 import type { Solicitud } from '@/lib/tipos'
@@ -128,7 +128,7 @@ export function TarjetaSolicitud({
 
       <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
         <span>
-          {autor} · {formatearFecha(solicitud.created_at)}
+          {autor} · {formatearMarcaDeTiempo(solicitud.created_at)}
           {solicitud.urgencia === 'urgente' && (
             <span className="ml-2 font-medium text-red-600">URGENTE</span>
           )}

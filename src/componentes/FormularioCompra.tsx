@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { registrarCompra } from '@/app/compras/acciones'
 import { crearClienteNavegador } from '@/lib/supabase/navegador'
 import { tasaImplicita } from '@/lib/balance'
-import { formatearBs, formatearUsd } from '@/lib/formato'
+import { formatearBs, formatearUsd, hoyVenezuela } from '@/lib/formato'
 import { parsearMonto } from '@/lib/montos'
 import { ERROR_CONEXION } from '@/lib/errores'
 
@@ -209,7 +209,7 @@ export function FormularioCompra({
         <input
           name="fecha_compra"
           type="date"
-          defaultValue={new Date().toISOString().slice(0, 10)}
+          defaultValue={hoyVenezuela()}
           className="w-full rounded-xl border border-slate-200 px-3 py-3"
         />
       </label>

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
 import { parsearMonto } from '@/lib/montos'
+import { hoyVenezuela } from '@/lib/formato'
 
 type Resultado = { error: string | null }
 
@@ -39,7 +40,7 @@ export async function registrarAporte(datos: FormData): Promise<Resultado> {
     .insert({
       registrada_por: perfil.id,
       monto_usd: montoUsd,
-      fecha: fecha || new Date().toISOString().slice(0, 10),
+      fecha: fecha || hoyVenezuela(),
       metodo,
       notas,
     })

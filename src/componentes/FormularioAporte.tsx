@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { registrarAporte } from '@/app/dinero/acciones'
-import { formatearUsd } from '@/lib/formato'
+import { formatearUsd, hoyVenezuela } from '@/lib/formato'
 import { parsearMonto } from '@/lib/montos'
 import { ERROR_CONEXION } from '@/lib/errores'
 
@@ -71,7 +71,7 @@ export function FormularioAporte() {
           <input
             name="fecha"
             type="date"
-            defaultValue={new Date().toISOString().slice(0, 10)}
+            defaultValue={hoyVenezuela()}
             className="w-full rounded-xl border border-slate-200 px-3 py-3"
           />
         </label>
