@@ -52,7 +52,7 @@ export function AccionesSolicitud({ solicitud }: { solicitud: Solicitud }) {
           <button
             type="button"
             onClick={() => setAbierto('ninguno')}
-            className="mt-2 w-full text-sm text-slate-500 underline"
+            className="mt-2 flex h-11 w-full items-center justify-center text-sm text-slate-500 underline"
           >
             Cerrar
           </button>
