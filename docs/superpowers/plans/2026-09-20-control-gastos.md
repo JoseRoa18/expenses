@@ -931,18 +931,40 @@ as $$
 begin
   new.updated_at := now();
 
-  -- Inmutabilidad de contenido: una vez que la solicitud dejó de estar
-  -- pendiente, ni el contenido ni el motivo de rechazo pueden cambiar, sea
-  -- que el estado también cambie en este mismo UPDATE o no. Esta comprobación
-  -- va ANTES de la rama de "mismo estado" a propósito: si vive dentro de ella,
-  -- una transición legal (p. ej. comprada -> entregada) puede colarse
-  -- reescribiendo el título o las notas en el mismo UPDATE.
-  if old.estado <> 'pendiente'
-     and (old.titulo, old.cantidad, old.urgencia, old.notas)
-         is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
+  -- La autoría nunca se reasigna. No hay ningún flujo legítimo -- ni de la
+  -- app, ni una corrección administrativa -- que le cambie el dueño a una
+  -- solicitud, así que este candado no tiene excepción para nadie.
+  if new.creada_por is distinct from old.creada_por then
+    raise exception 'La autoría de una solicitud no se puede reasignar';
+  end if;
+
+  -- Inmutabilidad de contenido: solo el propio autor puede cambiar el
+  -- título, la cantidad, la urgencia o las notas, y aun el autor deja de
+  -- poder hacerlo en cuanto la solicitud sale de "pendiente". Esto se
+  -- impone aquí -- no solo en la política de RLS -- porque la política
+  -- "comprador gestiona estado" permite a Jose actualizar la fila para
+  -- cambiar el estado, y RLS es por fila, no por columna: sin este
+  -- candado, Jose podría reescribir el contenido de una solicitud ajena en
+  -- el mismo UPDATE con el que la marca como comprada.
+  --
+  -- auth.uid() es NULL bajo una conexión con la llave de servicio
+  -- (migraciones, scripts de administración, correcciones manuales desde
+  -- Supabase), así que un llamador NULL no se bloquea aquí: el candado es
+  -- para la app, no para el acceso administrativo que el spec ya permite.
+  if (old.titulo, old.cantidad, old.urgencia, old.notas)
+     is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
   then
-    raise exception
-      'La solicitud está en estado % y ya no se puede editar', old.estado;
+    if auth.uid() is not null and auth.uid() <> old.creada_por then
+      raise exception 'Solo el autor de la solicitud puede cambiar su contenido';
+    end if;
+
+    -- Antes esto solo se comprobaba cuando el estado se mantenía igual, así
+    -- que una transición legal (p. ej. comprada -> entregada) podía colarse
+    -- reescribiendo el título o las notas en el mismo UPDATE.
+    if old.estado <> 'pendiente' then
+      raise exception
+        'La solicitud está en estado % y ya no se puede editar', old.estado;
+    end if;
   end if;
 
   -- El motivo de rechazo es el registro de por qué se rechazó algo: una vez
@@ -1316,6 +1338,24 @@ Expected: las tres migraciones dicen `listo`, y luego `Alix: cuenta creada`, `Jo
 - [ ] **Step 5: Escribir la prueba de permisos**
 
 Crear `tests/permisos.test.ts`. Es una prueba de integración: habla con el Supabase real usando la llave pública, igual que lo haría un navegador.
+
+> **La versión viva de este archivo está en el repositorio y es más larga que lo
+> que sigue.** El esqueleto de abajo se dejó tal cual para que se vea de dónde
+> partió, pero durante la revisión se le añadieron dos cosas sin las cuales no
+> sirve, y que hay que conservar en cualquier reescritura:
+>
+> 1. **Un `beforeAll` que siembra dinero real** (Alix crea una solicitud, Jose la
+>    marca comprada, Jose inserta una compra, su factura y un aporte, todo por
+>    las políticas normales). Sin esa siembra, las tres comprobaciones de que
+>    "Alix no lee compras/aportes/facturas" corren contra tablas vacías y pasan
+>    exactamente igual con la RLS apagada: la prueba que custodia el requisito
+>    central del proyecto no custodia nada.
+> 2. **Un `afterAll` que borra en duro con la llave de servicio**, en orden
+>    seguro para las llaves foráneas (`facturas` → `compras` → `aportes` →
+>    `solicitudes`), rastreando los ids que la propia suite creó. La suite
+>    escribe en la base real y no hay política de DELETE para la app, así que sin
+>    esto cada ejecución deja solicitudes de prueba visibles para Alix y Yenny en
+>    su lista real.
 
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
