@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { FormularioCompra } from '@/componentes/FormularioCompra'
 import { rechazarSolicitud } from '@/app/compras/acciones'
 import { puedeComprar, puedeRechazar } from '@/lib/solicitudes'
+import { ERROR_CONEXION } from '@/lib/errores'
 import type { Solicitud } from '@/lib/tipos'
 
 export function AccionesSolicitud({ solicitud }: { solicitud: Solicitud }) {
@@ -16,9 +17,13 @@ export function AccionesSolicitud({ solicitud }: { solicitud: Solicitud }) {
 
   function rechazar() {
     iniciar(async () => {
-      const resultado = await rechazarSolicitud(solicitud.id, motivo)
-      setError(resultado.error)
-      if (!resultado.error) setAbierto('ninguno')
+      try {
+        const resultado = await rechazarSolicitud(solicitud.id, motivo)
+        setError(resultado.error)
+        if (!resultado.error) setAbierto('ninguno')
+      } catch {
+        setError(ERROR_CONEXION)
+      }
     })
   }
 

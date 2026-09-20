@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { crearSolicitud } from '@/app/solicitudes/acciones'
+import { ERROR_CONEXION } from '@/lib/errores'
 
 /**
  * El formulario de "Pedir algo" necesita ser un componente de cliente (y no
@@ -27,9 +28,16 @@ export function FormularioSolicitud() {
 
   function enviar(datos: FormData) {
     iniciar(async () => {
-      const resultado = await crearSolicitud(datos)
-      setError(resultado.error)
-      if (!resultado.error) formRef.current?.reset()
+      try {
+        const resultado = await crearSolicitud(datos)
+        setError(resultado.error)
+        if (!resultado.error) formRef.current?.reset()
+      } catch {
+        // Mismo caso que en TecladoPin: un fallo que ni siquiera llegó a
+        // devolver { error } (red caída, etc.). Sin este catch, Alix perdía
+        // lo que había escrito y veía la pantalla de error en inglés de Next.
+        setError(ERROR_CONEXION)
+      }
     })
   }
 

@@ -6,6 +6,7 @@ import { AccionesSolicitud } from '@/componentes/AccionesSolicitud'
 import { puedeEditar, puedeCancelar } from '@/lib/solicitudes'
 import { formatearFecha } from '@/lib/formato'
 import { cancelarSolicitud, editarSolicitud } from '@/app/solicitudes/acciones'
+import { ERROR_CONEXION } from '@/lib/errores'
 import type { Solicitud } from '@/lib/tipos'
 
 export function TarjetaSolicitud({
@@ -25,16 +26,24 @@ export function TarjetaSolicitud({
 
   function guardar(datos: FormData) {
     iniciar(async () => {
-      const resultado = await editarSolicitud(solicitud.id, datos)
-      setError(resultado.error)
-      if (!resultado.error) setEditando(false)
+      try {
+        const resultado = await editarSolicitud(solicitud.id, datos)
+        setError(resultado.error)
+        if (!resultado.error) setEditando(false)
+      } catch {
+        setError(ERROR_CONEXION)
+      }
     })
   }
 
   function cancelar() {
     iniciar(async () => {
-      const resultado = await cancelarSolicitud(solicitud.id)
-      setError(resultado.error)
+      try {
+        const resultado = await cancelarSolicitud(solicitud.id)
+        setError(resultado.error)
+      } catch {
+        setError(ERROR_CONEXION)
+      }
     })
   }
 

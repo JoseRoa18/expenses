@@ -3,11 +3,9 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { iniciarSesion } from '@/app/entrar/acciones'
+import { ERROR_CONEXION } from '@/lib/errores'
 
 const TECLAS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '←']
-
-/** Mensaje para cuando ni siquiera llegó respuesta del servidor (red caída, etc.). */
-const ERROR_CONEXION = 'No se pudo conectar. Intenta de nuevo.'
 
 export function TecladoPin({ persona, alVolver }: { persona: string; alVolver: () => void }) {
   const router = useRouter()

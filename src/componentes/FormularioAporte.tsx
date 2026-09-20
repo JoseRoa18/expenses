@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { registrarAporte } from '@/app/dinero/acciones'
 import { formatearUsd } from '@/lib/formato'
 import { parsearMonto } from '@/lib/montos'
+import { ERROR_CONEXION } from '@/lib/errores'
 
 export function FormularioAporte() {
   const [montoUsd, setMontoUsd] = useState('')
@@ -30,10 +31,14 @@ export function FormularioAporte() {
     }
 
     iniciar(async () => {
-      const resultado = await registrarAporte(datos)
-      setError(resultado.error)
-      if (!resultado.error) {
-        setMontoUsd('')
+      try {
+        const resultado = await registrarAporte(datos)
+        setError(resultado.error)
+        if (!resultado.error) {
+          setMontoUsd('')
+        }
+      } catch {
+        setError(ERROR_CONEXION)
       }
     })
   }

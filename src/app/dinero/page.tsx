@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation'
-import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
+import { crearClienteServidor, obtenerPerfilObligatorio } from '@/lib/supabase/servidor'
 import { ResumenBalance } from '@/componentes/ResumenBalance'
 import { FormularioAporte } from '@/componentes/FormularioAporte'
 import { BotonSalir } from '@/componentes/BotonSalir'
@@ -10,7 +10,7 @@ import type { Aporte } from '@/lib/tipos'
 export const dynamic = 'force-dynamic'
 
 export default async function Dinero() {
-  const perfil = await obtenerPerfil()
+  const perfil = await obtenerPerfilObligatorio()
   if (!perfil) redirect('/entrar')
   // Alix (solicitante) nunca ve dinero: esta pantalla no existe para ella.
   if (perfil.rol === 'solicitante') redirect('/solicitudes')
