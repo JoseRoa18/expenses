@@ -173,7 +173,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 # Secretas: solo servidor y scripts. NUNCA con prefijo NEXT_PUBLIC_
 SUPABASE_SERVICE_ROLE_KEY=
-DATABASE_URL=postgresql://postgres:CONTRASENA@db.TU_PROYECTO.supabase.co:5432/postgres
+# Session Pooler, puerto 5432 (Settings → Database → Connection string → Session pooler).
+# NO uses la conexión directa db.<ref>.supabase.co: solo resuelve a IPv6.
+DATABASE_URL=postgresql://postgres.TU_PROYECTO:CONTRASENA@aws-0-TU_REGION.pooler.supabase.com:5432/postgres
 
 # PIN de cada persona (6 dígitos). Solo se usan al crear las cuentas y en las pruebas.
 PIN_ALIX=
@@ -766,7 +768,11 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
-import 'dotenv/config'
+import { config } from 'dotenv'
+
+// dotenv carga `.env` por defecto; los secretos de este proyecto viven en
+// `.env.local`, asi que hay que nombrarlo explicitamente.
+config({ path: '.env.local', quiet: true })
 
 const aqui = dirname(fileURLToPath(import.meta.url))
 const carpeta = join(aqui, '..', 'migraciones')
@@ -956,7 +962,20 @@ create trigger trg_transicion_solicitud
 Run: `npm run migrar`
 Expected: `Aplicando 0001_esquema.sql... listo`
 
-Si falla con un error de conexión, revisar que `DATABASE_URL` sea la cadena de **Direct connection** (puerto 5432) y no la del pooler (6543): el pooler no admite bien varias sentencias DDL en una sola llamada.
+Si falla con un error de conexión, revisar `DATABASE_URL`. La cadena que funciona
+en este proyecto es la del **Session Pooler**, puerto **5432**:
+
+```
+postgresql://postgres.cdjkosrunejazgojjoxe:CONTRASENA@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+```
+
+Dos cosas que no funcionan y conviene no perder tiempo con ellas:
+
+- La **conexión directa** (`db.cdjkosrunejazgojjoxe.supabase.co`) solo resuelve a
+  IPv6. Desde una red sin IPv6 da `ENOTFOUND`, que parece un error de contraseña
+  pero no lo es.
+- El **Transaction Pooler** (puerto 6543) no admite bien varias sentencias DDL en
+  una sola llamada, que es justo lo que hacen estas migraciones.
 
 - [ ] **Step 4: Verificar que es repetible**
 
@@ -998,7 +1017,11 @@ Crear `supabase/scripts/crear-usuarios.mjs`:
 
 ```js
 import { createClient } from '@supabase/supabase-js'
-import 'dotenv/config'
+import { config } from 'dotenv'
+
+// dotenv carga `.env` por defecto; los secretos de este proyecto viven en
+// `.env.local`, asi que hay que nombrarlo explicitamente.
+config({ path: '.env.local', quiet: true })
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const servicio = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -1269,7 +1292,11 @@ Crear `tests/permisos.test.ts`. Es una prueba de integración: habla con el Supa
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import 'dotenv/config'
+import { config } from 'dotenv'
+
+// dotenv carga `.env` por defecto; los secretos de este proyecto viven en
+// `.env.local`, asi que hay que nombrarlo explicitamente.
+config({ path: '.env.local', quiet: true })
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
