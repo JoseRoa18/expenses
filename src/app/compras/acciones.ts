@@ -43,6 +43,40 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
 
   const supabase = await crearClienteServidor()
 
+  // Critical 1 (revisión final, opción b del reviewer): antes se insertaba
+  // la compra primero y, si la solicitud no lograba pasar a "comprada", se
+  // intentaba borrarla para compensar. Esa compensación nunca funcionaba:
+  // no existe (ni debe existir, "nada se borra") una política DELETE sobre
+  // `compras`, así que el DELETE afectaba cero filas sin devolver ningún
+  // error, la compra huérfana quedaba contando en el balance de Yenny para
+  // siempre, y a Jose se le decía "no se guardó nada" -- lo contrario de lo
+  // que había pasado. El caso real: Alix cancela la solicitud mientras Jose
+  // tiene el formulario de "Comprar" abierto; Jose envía; sin este cambio,
+  // el INSERT en `compras` no está restringido por el estado de la
+  // solicitud y hubiera entrado igual.
+  //
+  // Se invierte el orden: primero se intenta el cambio de estado. Si la
+  // solicitud ya no está pendiente (cancelada, rechazada, o ya comprada por
+  // otra vía), el trigger `validar_transicion_solicitud` de 0001 la
+  // rechaza, o el UPDATE simplemente no toca ninguna fila (RLS) -- en
+  // cualquier caso, se corta aquí, antes de que exista ninguna fila en
+  // `compras` que compensar. Una operación que no puede fallar a medias le
+  // gana a una que se disculpa bien.
+  if (solicitudId) {
+    const { data: solicitudActualizada, error: errorEstado } = await supabase
+      .from('solicitudes')
+      .update({ estado: 'comprada' })
+      .eq('id', solicitudId)
+      .select('id')
+
+    if (errorEstado || !solicitudActualizada || solicitudActualizada.length === 0) {
+      return {
+        error:
+          'Esta solicitud ya no está pendiente (puede que se haya cancelado, rechazado, o que ya esté comprada). No se guardó ningún gasto nuevo: revisa la lista de solicitudes.',
+      }
+    }
+  }
+
   const { data: compra, error } = await supabase
     .from('compras')
     .insert({
@@ -57,37 +91,29 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
     .select()
     .single()
 
-  if (error || !compra) return { error: 'No se pudo guardar la compra' }
-
-  // Si venía de una solicitud, esta pasa a "comprada".
-  if (solicitudId) {
-    const { data: solicitudActualizada, error: errorEstado } = await supabase
-      .from('solicitudes')
-      .update({ estado: 'comprada' })
-      .eq('id', solicitudId)
-      .select('id')
-
-    // Igual que en marcarEntregada: un UPDATE que RLS deja en cero filas no
-    // es un error para PostgREST, así que hay que comprobar también que algo
-    // se haya actualizado. Todavía no se subió ninguna factura en este punto
-    // (eso ocurre más abajo), así que deshacer la compra aquí no deja
-    // ninguna evidencia huérfana.
-    if (errorEstado || !solicitudActualizada || solicitudActualizada.length === 0) {
-      // La compra quedó guardada pero la solicitud no cambió: se deshace la
-      // compra para que no queden las dos cosas diciendo lo contrario.
-      await supabase.from('compras').delete().eq('id', compra.id)
-      return { error: 'No se pudo actualizar la solicitud. No se guardó nada.' }
+  if (error || !compra) {
+    // Caso residual, mucho más raro que el que se acaba de eliminar: si
+    // `solicitudId` estaba presente, el paso de arriba ya la dejó en
+    // "comprada" y este fallo (constraint, corte de conexión) impide que
+    // exista ninguna compra detrás. El trigger de 0001 no permite volver de
+    // "comprada" a "pendiente" -- por diseño, no hay marcha atrás salvo
+    // hacia el siguiente estado legítimo ("entregada") -- así que esto
+    // necesita una corrección administrativa manual. Se avisa en vez de
+    // dejar que Jose reintente y el gasto quede contado dos veces.
+    return {
+      error: solicitudId
+        ? 'La solicitud se marcó como comprada, pero el gasto no se pudo guardar. No reintentes: avisa para revisar esta solicitud manualmente antes de tocar nada más.'
+        : 'No se pudo guardar la compra',
     }
   }
 
   // Facturas: se suben al bucket privado bajo la carpeta de esta compra.
   const archivos = datos.getAll('facturas').filter((f): f is File => f instanceof File && f.size > 0)
 
-  // La compra ya es legítima y ya está guardada (con o sin la solicitud
-  // actualizada, según el bloque de arriba): deshacerla porque una foto no
-  // subió dejaría a Jose sin registrar un gasto real que ya hizo, parado en
-  // una tienda con el papel en la mano. Se cuentan los fallos para avisarle,
-  // en vez de fallar todo el envío.
+  // La compra ya es legítima y ya está guardada: deshacerla porque una foto
+  // no subió dejaría a Jose sin registrar un gasto real que ya hizo, parado
+  // en una tienda con el papel en la mano. Se cuentan los fallos para
+  // avisarle, en vez de fallar todo el envío.
   let facturasFallidas = 0
 
   for (const archivo of archivos) {
