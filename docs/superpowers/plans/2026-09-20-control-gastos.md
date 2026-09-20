@@ -2132,7 +2132,13 @@ export default async function Solicitudes() {
       </header>
 
       {puedePedir && (
-        <form action={crearSolicitud} className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
+        <form
+          action={async (datos: FormData) => {
+            'use server'
+            await crearSolicitud(datos)
+          }}
+          className="mb-6 rounded-2xl bg-white p-4 shadow-sm"
+        >
           <h2 className="mb-3 font-medium">Pedir algo</h2>
           <input
             name="titulo"
@@ -3096,7 +3102,13 @@ export default async function Dinero() {
       {perfil.rol === 'comprador' && (
         <section className="mt-6">
           <h2 className="mb-2 font-medium">Registrar dinero recibido</h2>
-          <form action={registrarAporte} className="rounded-2xl bg-white p-4 shadow-sm">
+          <form
+            action={async (datos: FormData) => {
+              'use server'
+              await registrarAporte(datos)
+            }}
+            className="rounded-2xl bg-white p-4 shadow-sm"
+          >
             <label className="mb-2 block">
               <span className="mb-1 block text-xs text-slate-500">Monto en dólares</span>
               <input
