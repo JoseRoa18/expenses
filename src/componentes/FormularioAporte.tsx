@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { registrarAporte } from '@/app/dinero/acciones'
 import { formatearUsd, hoyVenezuela } from '@/lib/formato'
-import { parsearMonto } from '@/lib/montos'
+import { parsearMonto, MONTO_MAXIMO } from '@/lib/montos'
 import { ERROR_CONEXION } from '@/lib/errores'
 
 export function FormularioAporte() {
@@ -18,7 +18,11 @@ export function FormularioAporte() {
   // el número que se va a registrar.
   const usdEscrito = montoUsd.trim() !== ''
   const usdParseado = usdEscrito ? parsearMonto(montoUsd) : null
-  const usdInvalido = usdEscrito && usdParseado === null
+  // Mismo techo que aplica registrarAporte en el servidor: sin esto, la
+  // vista previa decía "Se guardará: $50.000.000,00" para un monto que el
+  // servidor iba a rechazar un instante después.
+  const usdExcede = usdParseado !== null && usdParseado > MONTO_MAXIMO
+  const usdInvalido = (usdEscrito && usdParseado === null) || usdExcede
 
   function enviar(datos: FormData) {
     // Comprobación de nuevo aquí (no solo en el botón deshabilitado): un
@@ -58,7 +62,12 @@ export function FormularioAporte() {
           className="w-full rounded-xl border border-slate-200 px-3 py-3"
         />
         <p className="mt-1 min-h-4 text-xs">
-          {usdInvalido && <span className="text-red-600">No se entiende. Ej: 12,50</span>}
+          {usdExcede && (
+            <span className="text-red-600">Demasiado alto. Revisa que no tenga un cero de más.</span>
+          )}
+          {!usdExcede && usdEscrito && usdParseado === null && (
+            <span className="text-red-600">No se entiende. Ej: 12,50</span>
+          )}
           {!usdInvalido && usdParseado !== null && (
             <span className="text-slate-500">Se guardará: {formatearUsd(usdParseado)}</span>
           )}

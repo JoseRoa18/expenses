@@ -2,15 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
-import { parsearMonto } from '@/lib/montos'
+import { parsearMonto, MONTO_MAXIMO } from '@/lib/montos'
 import { hoyVenezuela } from '@/lib/formato'
 
 type Resultado = { error: string | null }
-
-// Mismo techo defensivo que en registrarCompra (Tarea 8): ningún aporte real
-// se acerca a esto. Atrapa un cero de más con un mensaje en español en vez de
-// dejar que lo atrape el límite técnico de la columna.
-const MONTO_MAXIMO = 10_000_000
 
 export async function registrarAporte(datos: FormData): Promise<Resultado> {
   const perfil = await obtenerPerfil()

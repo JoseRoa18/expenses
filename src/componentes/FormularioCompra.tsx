@@ -5,7 +5,7 @@ import { registrarCompra } from '@/app/compras/acciones'
 import { crearClienteNavegador } from '@/lib/supabase/navegador'
 import { tasaImplicita } from '@/lib/balance'
 import { formatearBs, formatearUsd, hoyVenezuela } from '@/lib/formato'
-import { parsearMonto } from '@/lib/montos'
+import { parsearMonto, MONTO_MAXIMO } from '@/lib/montos'
 import { ERROR_CONEXION } from '@/lib/errores'
 
 // Mismo límite que el bucket 'facturas' (supabase/migraciones/0003), para
@@ -39,8 +39,13 @@ export function FormularioCompra({
   const usdEscrito = montoUsd.trim() !== ''
   const bsParseado = bsEscrito ? parsearMonto(montoBs) : null
   const usdParseado = usdEscrito ? parsearMonto(montoUsd) : null
-  const bsInvalido = bsEscrito && bsParseado === null
-  const usdInvalido = usdEscrito && usdParseado === null
+  // MONTO_MAXIMO es el mismo techo que aplica registrarCompra en el
+  // servidor: sin esto, la vista previa decía "Se guardará: 50.000.000,00
+  // Bs" para un monto que el servidor iba a rechazar un instante después.
+  const bsExcede = bsParseado !== null && bsParseado > MONTO_MAXIMO
+  const usdExcede = usdParseado !== null && usdParseado > MONTO_MAXIMO
+  const bsInvalido = (bsEscrito && bsParseado === null) || bsExcede
+  const usdInvalido = (usdEscrito && usdParseado === null) || usdExcede
 
   const tasa =
     bsParseado !== null && usdParseado !== null ? tasaImplicita(bsParseado, usdParseado) : null
@@ -169,7 +174,10 @@ export function FormularioCompra({
             className="w-full rounded-xl border border-slate-200 px-3 py-3"
           />
           <p className="mt-1 min-h-4 text-xs">
-            {bsInvalido && (
+            {bsExcede && (
+              <span className="text-red-600">Demasiado alto. Revisa que no tenga un cero de más.</span>
+            )}
+            {!bsExcede && bsEscrito && bsParseado === null && (
               <span className="text-red-600">No se entiende. Ej: 1.500,00</span>
             )}
             {!bsInvalido && bsParseado !== null && (
@@ -190,7 +198,10 @@ export function FormularioCompra({
             className="w-full rounded-xl border border-slate-200 px-3 py-3"
           />
           <p className="mt-1 min-h-4 text-xs">
-            {usdInvalido && (
+            {usdExcede && (
+              <span className="text-red-600">Demasiado alto. Revisa que no tenga un cero de más.</span>
+            )}
+            {!usdExcede && usdEscrito && usdParseado === null && (
               <span className="text-red-600">No se entiende. Ej: 12,50</span>
             )}
             {!usdInvalido && usdParseado !== null && (

@@ -2,17 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
-import { parsearMonto } from '@/lib/montos'
+import { parsearMonto, MONTO_MAXIMO } from '@/lib/montos'
 import { hoyVenezuela } from '@/lib/formato'
 
 type Resultado = { error: string | null; advertencia?: string; facturasFallidas?: number }
-
-// Techo defensivo: ningún gasto real de esta casa se acerca a esto. Sirve
-// para atrapar un error de escritura (un cero de más) con un mensaje en
-// español, en vez de dejar que lo atrape el overflow de `numeric(14,2)` en
-// la base de datos con un error genérico. El límite de la columna es mucho
-// más alto que esto; este es un límite de sentido común, no técnico.
-const MONTO_MAXIMO = 10_000_000
 
 export async function registrarCompra(datos: FormData): Promise<Resultado> {
   const perfil = await obtenerPerfil()

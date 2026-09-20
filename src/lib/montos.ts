@@ -28,6 +28,22 @@
  * - Punto de millares y coma decimal combinados ("1.500,50") se leen juntos
  *   de la forma esperada.
  */
+/**
+ * Techo defensivo: ningún gasto ni aporte real de esta casa se acerca a
+ * esto. Sirve para atrapar un error de escritura (un cero de más) con un
+ * mensaje en español, en vez de dejar que lo atrape el overflow de
+ * `numeric(14,2)`/`numeric(12,2)` en la base de datos con un error
+ * genérico. El límite de las columnas es mucho más alto que esto; este es
+ * un límite de sentido común, no técnico.
+ *
+ * Vive aquí -- y solo aquí -- porque este archivo es donde viven las reglas
+ * de montos de todo el proyecto. Antes estaba definido dos veces, con el
+ * mismo valor y casi el mismo comentario, en `compras/acciones.ts` y
+ * `dinero/acciones.ts`: exactamente la clase de duplicación que este
+ * archivo existe para evitar.
+ */
+export const MONTO_MAXIMO = 10_000_000
+
 export function parsearMonto(texto: string): number | null {
   const limpio = texto.trim()
   if (!limpio) return null
