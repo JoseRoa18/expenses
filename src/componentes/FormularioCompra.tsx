@@ -55,6 +55,14 @@ export function FormularioCompra({
         setMontoBs('')
         setMontoUsd('')
       }
+      if (resultado.advertencia) {
+        // Cuando la compra viene de una solicitud, en cuanto esta pasa a
+        // "comprada" el formulario entero se oculta (ver AccionesSolicitud):
+        // un texto en pantalla podría desaparecer antes de que Jose llegue a
+        // leerlo. Una alerta nativa no depende de que este componente siga
+        // visible ni montado para que él la vea.
+        window.alert(resultado.advertencia)
+      }
     })
   }
 

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
 import { parsearMonto } from '@/lib/montos'
 
-type Resultado = { error: string | null }
+type Resultado = { error: string | null; advertencia?: string }
 
 // Techo defensivo: ningún gasto real de esta casa se acerca a esto. Sirve
 // para atrapar un error de escritura (un cero de más) con un mensaje en
@@ -83,6 +83,13 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
   // Facturas: se suben al bucket privado bajo la carpeta de esta compra.
   const archivos = datos.getAll('facturas').filter((f): f is File => f instanceof File && f.size > 0)
 
+  // La compra ya es legítima y ya está guardada (con o sin la solicitud
+  // actualizada, según el bloque de arriba): deshacerla porque una foto no
+  // subió dejaría a Jose sin registrar un gasto real que ya hizo, parado en
+  // una tienda con el papel en la mano. Se cuentan los fallos para avisarle,
+  // en vez de fallar todo el envío.
+  let facturasFallidas = 0
+
   for (const archivo of archivos) {
     const extension = archivo.name.split('.').pop() ?? 'jpg'
     const ruta = `${compra.id}/${crypto.randomUUID()}.${extension}`
@@ -91,14 +98,34 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
       .from('facturas')
       .upload(ruta, archivo, { contentType: archivo.type })
 
-    if (errorSubida) continue
+    if (errorSubida) {
+      facturasFallidas++
+      continue
+    }
 
-    await supabase.from('facturas').insert({ compra_id: compra.id, storage_path: ruta })
+    const { error: errorFactura } = await supabase
+      .from('facturas')
+      .insert({ compra_id: compra.id, storage_path: ruta })
+
+    // La imagen ya quedó en el bucket, pero sin la fila que la asocia a esta
+    // compra: para Jose y para Yenny es exactamente como si no existiera.
+    if (errorFactura) facturasFallidas++
   }
 
   revalidatePath('/compras')
   revalidatePath('/solicitudes')
   revalidatePath('/dinero')
+
+  if (facturasFallidas > 0) {
+    const advertencia =
+      facturasFallidas === archivos.length
+        ? archivos.length === 1
+          ? 'La compra se guardó, pero la foto de la factura no se pudo subir. Guarda el papel: el sistema no tiene evidencia de esta compra.'
+          : `La compra se guardó, pero ninguna de las ${archivos.length} fotos se pudo subir. Guarda esos papeles: el sistema no tiene evidencia de esta compra.`
+        : `La compra se guardó, pero ${facturasFallidas} de ${archivos.length} foto(s) de factura no se pudieron subir. Guarda esos papeles.`
+    return { error: null, advertencia }
+  }
+
   return { error: null }
 }
 
