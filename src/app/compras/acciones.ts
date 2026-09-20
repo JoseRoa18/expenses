@@ -110,10 +110,20 @@ export async function marcarEntregada(compraId: string): Promise<Resultado> {
   if (error || !compra) return { error: 'No se pudo marcar como entregada' }
 
   if (compra.solicitud_id) {
-    await supabase
+    const { data: solicitudActualizada, error: errorEstado } = await supabase
       .from('solicitudes')
       .update({ estado: 'entregada' })
       .eq('id', compra.solicitud_id)
+      .select('id')
+
+    // Igual que en registrarCompra: si la solicitud no quedó "entregada"
+    // (error, o RLS la dejó invisible sin devolver error), no se deja la
+    // compra diciendo lo contrario. Se deshace la marca de entrega para que
+    // las dos tablas sigan de acuerdo.
+    if (errorEstado || !solicitudActualizada || solicitudActualizada.length === 0) {
+      await supabase.from('compras').update({ fecha_entrega: null }).eq('id', compraId)
+      return { error: 'No se pudo actualizar la solicitud. La entrega no quedó marcada.' }
+    }
   }
 
   revalidatePath('/compras')
