@@ -132,16 +132,28 @@ export async function marcarEntregada(compraId: string): Promise<Resultado> {
 }
 
 export async function rechazarSolicitud(id: string, motivo: string): Promise<Resultado> {
+  const perfil = await obtenerPerfil()
+  if (!perfil) return { error: 'No hay sesión' }
+  if (perfil.rol !== 'comprador') return { error: 'Solo Jose puede rechazar solicitudes' }
+
   const limpio = motivo.trim()
   if (!limpio) return { error: 'Escribe el motivo del rechazo' }
 
   const supabase = await crearClienteServidor()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('solicitudes')
     .update({ estado: 'rechazada', motivo_rechazo: limpio })
     .eq('id', id)
+    .select('id')
 
   if (error) return { error: 'No se pudo rechazar' }
+
+  // Sin este chequeo, un update que RLS deja en cero filas (por ejemplo
+  // porque ya no está pendiente) igual devuelve { error: null } y Jose ve
+  // "rechazado" en algo que en realidad no cambió.
+  if (!data || data.length === 0) {
+    return { error: 'Ya no se puede rechazar: puede que ya esté comprada o cancelada.' }
+  }
 
   revalidatePath('/solicitudes')
   return { error: null }
