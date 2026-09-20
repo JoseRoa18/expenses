@@ -334,7 +334,13 @@ describe('Jose no puede reescribir ni robarse solicitudes ajenas', () => {
     const { error } = await jose.from('solicitudes')
       .update({ titulo: 'título reescrito por Jose' })
       .eq('id', solicitud!.id)
-    expect(error).not.toBeNull()
+    // No basta con "hubo un error": un error de FK, de red, o de cualquier
+    // otra cosa también pasaría `expect(error).not.toBeNull()` sin que el
+    // candado de autoría de contenido (0001, validar_transicion_solicitud)
+    // haya hecho nada. Se comprueba el mensaje exacto que lanza ese trigger,
+    // para que la prueba falle si algún día deja de ser ese candado el que
+    // bloquea esto.
+    expect(error?.message).toContain('Solo el autor de la solicitud puede cambiar su contenido')
   })
 
   it('no puede reescribir las notas de una solicitud pendiente ajena', async () => {
@@ -346,7 +352,7 @@ describe('Jose no puede reescribir ni robarse solicitudes ajenas', () => {
     const { error } = await jose.from('solicitudes')
       .update({ notas: 'notas reescritas por Jose' })
       .eq('id', solicitud!.id)
-    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Solo el autor de la solicitud puede cambiar su contenido')
   })
 
   it('no puede robarse la autoría de una solicitud', async () => {
@@ -358,7 +364,11 @@ describe('Jose no puede reescribir ni robarse solicitudes ajenas', () => {
     const { error } = await jose.from('solicitudes')
       .update({ creada_por: idPerfilJose })
       .eq('id', solicitud!.id)
-    expect(error).not.toBeNull()
+    // Antes esto solo comprobaba `error !== null`, que pasa igual de bien
+    // con un error de llave foránea que con el candado de autoría de
+    // verdad ("no puede robarse la autoría" pasaría aunque el candado
+    // estuviera roto, mientras algo -- cualquier cosa -- fallara antes).
+    expect(error?.message).toContain('La autoría de una solicitud no se puede reasignar')
   })
 
   it('no puede cambiar el estado y reescribir el título en el mismo llamado', async () => {
@@ -370,7 +380,7 @@ describe('Jose no puede reescribir ni robarse solicitudes ajenas', () => {
     const { error } = await jose.from('solicitudes')
       .update({ estado: 'comprada', titulo: 'título reescrito por Jose' })
       .eq('id', solicitud!.id)
-    expect(error).not.toBeNull()
+    expect(error?.message).toContain('Solo el autor de la solicitud puede cambiar su contenido')
   })
 
   it('sí puede cambiar solo el estado, de pendiente a comprada', async () => {

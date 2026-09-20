@@ -42,6 +42,17 @@ describe('parsearMonto', () => {
     expect(parsearMonto('1,500')).toBeNull()
   })
 
+  it('rechaza una coma seguida de tres decimales', () => {
+    // "1.500,555" tiene punto de millares (válido) pero tres dígitos
+    // después de la coma. Esta app nunca maneja montos con tres decimales
+    // -- los guarda en `numeric(12,2)`/`numeric(14,2)` -- así que esto debe
+    // rechazarse en vez de truncar en silencio a "1.500,55" (perdiendo el
+    // último dígito) o dejar que el redondeo de la columna decida. Caso
+    // elegido a propósito porque calza directo con la precisión real de la
+    // columna, no solo con la forma del texto.
+    expect(parsearMonto('1.500,555')).toBeNull()
+  })
+
   it('rechaza el texto vacío', () => {
     expect(parsearMonto('')).toBeNull()
   })
