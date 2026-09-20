@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Gastos
 
-## Getting Started
+Control de gastos compartidos entre tres personas.
 
-First, run the development server:
+- **Alix** pide lo que hace falta.
+- **Jose** compra, sube la factura y entrega.
+- **Yenny** pone el dinero y lo audita todo.
+
+Alix no ve montos, facturas ni balance. Eso lo impone la base de datos, no la app.
+
+## Arrancar en local
 
 ```bash
+npm install
+cp .env.example .env.local   # rellenar con los valores reales
+npm run migrar               # crea tablas y permisos en Supabase
+npm run crear-usuarios       # crea las tres cuentas con sus PIN
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+`npm run migrar` corre cada archivo de `supabase/migraciones/` en orden contra
+`DATABASE_URL`. Esa variable debe ser el **Session Pooler** (puerto 5432,
+Settings → Database → Connection string → Session pooler) y no la conexión
+directa `db.<ref>.supabase.co`: la directa solo resuelve por IPv6 y falla desde
+la mayoría de las máquinas y CI. Las migraciones son repetibles: correrlas de
+nuevo no rompe nada.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`npm run crear-usuarios` crea (o actualiza el PIN de) las cuentas de Alix,
+Jose y Yenny usando `PIN_ALIX`, `PIN_JOSE` y `PIN_YENNY` de `.env.local`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Pruebas
 
-## Learn More
+```bash
+npm test
+```
 
-To learn more about Next.js, take a look at the following resources:
+`tests/permisos.test.ts` habla con el Supabase real (no hay un entorno de
+prueba separado) y comprueba, entre otras cosas, que Alix no puede leer nada
+de dinero. Si esa prueba falla, no se despliega.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Cambiar un PIN
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Editar el `PIN_*` correspondiente en `.env.local` y volver a correr
+`npm run crear-usuarios`.
 
-## Deploy on Vercel
+## Variables de entorno
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Ver `.env.example` para la lista completa y su formato.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+En Vercel (Project Settings → Environment Variables) solo hacen falta estas
+tres:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+**No** subir `DATABASE_URL` ni los `PIN_*` a Vercel: son solo para los scripts
+de administración (`migrar`, `crear-usuarios`) que se corren desde una
+máquina local, nunca desde la app en producción. `SUPABASE_SERVICE_ROLE_KEY`
+tampoco debe llevar el prefijo `NEXT_PUBLIC_`: eso la mandaría al navegador.
