@@ -216,15 +216,24 @@ export async function rechazarSolicitud(id: string, motivo: string): Promise<Res
   return { error: null }
 }
 
-/** URLs temporales (1 hora) para ver las fotos del bucket privado. */
-export async function obtenerEnlacesFacturas(compraId: string): Promise<string[]> {
+/**
+ * URLs temporales (1 hora) para ver las fotos del bucket privado.
+ *
+ * Devuelve `null` (no `[]`) cuando la consulta a `facturas` falla: antes no
+ * se comprobaba el error de esa consulta, así que un fallo de red o de
+ * PostgREST se veía exactamente igual que "esta compra no tiene factura", y
+ * a Yenny -- cuyo trabajo es justamente comprobar que la factura existe --
+ * se le mostraba "Sin factura" como si fuera un hecho, no un fallo de red.
+ */
+export async function obtenerEnlacesFacturas(compraId: string): Promise<string[] | null> {
   const supabase = await crearClienteServidor()
 
-  const { data: facturas } = await supabase
+  const { data: facturas, error } = await supabase
     .from('facturas')
     .select('storage_path')
     .eq('compra_id', compraId)
 
+  if (error) return null
   if (!facturas?.length) return []
 
   const enlaces = await Promise.all(
