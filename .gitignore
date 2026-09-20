@@ -1,0 +1,7 @@
+node_modules/
+.next/
+
+# Secretos — NUNCA versionar
+.env
+.env.local
+.env*.local
