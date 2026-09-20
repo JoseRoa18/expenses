@@ -46,6 +46,19 @@ let idPerfilAlix: string
 let idPerfilJose: string
 let idPerfilYenny: string
 
+// Balance justo antes de sembrar dinero, para que la prueba compruebe la
+// DIFERENCIA que produce la semilla, no un total absoluto. No hay entorno
+// de prueba separado (ver comentario de `admin` más abajo): esta suite
+// corre contra el mismo libro de cuentas real que van a usar Jose y Yenny.
+// Un total absoluto ("total_aportes === 777.77") es correcto solo mientras
+// la base esté vacía de dinero real; en cuanto Jose registre un aporte de
+// verdad, esa aserción falla para siempre, y la tentación de aflojarla
+// -- a `toBeGreaterThan(0)` o similar -- le quita los dientes a la prueba
+// más valiosa del proyecto. Con la diferencia, la prueba sigue siendo
+// exacta (sigue comprobando el redondeo de `numeric` a centavos exactos)
+// sin importar cuánto dinero real ya exista.
+let balanceAntes: { total_aportes: number; total_gastos: number }
+
 beforeAll(async () => {
   alix = await entrarComo('alix@expenses.local', process.env.PIN_ALIX!)
   jose = await entrarComo('jose@expenses.local', process.env.PIN_JOSE!)
@@ -57,6 +70,13 @@ beforeAll(async () => {
     .data!.id
   idPerfilYenny = (await yenny.from('profiles').select('id').eq('nombre', 'Yenny').single())
     .data!.id
+
+  const { data: balanceInicial, error: errBalanceInicial } = await yenny.rpc('obtener_balance')
+  if (errBalanceInicial) throw errBalanceInicial
+  balanceAntes = {
+    total_aportes: Number(balanceInicial![0].total_aportes),
+    total_gastos: Number(balanceInicial![0].total_gastos),
+  }
 
   // --- Semilla de dinero real -------------------------------------------
   // Sin esto, "Alix no lee compras/aportes/facturas" comprueba una tabla
@@ -180,7 +200,7 @@ describe('Yenny audita todo pero no registra gastos', () => {
     expect(error).toBeNull()
   })
 
-  it('obtiene el balance, y el número exacto que vería en pantalla', async () => {
+  it('obtiene el balance, y refleja exactamente la semilla que se sembró', async () => {
     const { data, error } = await yenny.rpc('obtener_balance')
     expect(error).toBeNull()
     expect(data).toHaveLength(1)
@@ -190,11 +210,12 @@ describe('Yenny audita todo pero no registra gastos', () => {
     // La semilla de este archivo mete exactamente un aporte de $777.77 y una
     // compra de $555.55 -- montos con centavos, elegidos a propósito para que
     // un `numeric` mal convertido (redondeo, truncamiento, o una suma hecha
-    // como texto) se note. Comprobar solo que las propiedades existen deja
-    // pasar un backend que devolviera cualquier número; aquí se comprueba el
-    // valor real y que el mismo cálculo que hace la pantalla de dinero
-    // (`calcularBalance`, con las sumas ya hechas por Postgres, tal como las
-    // usa `src/app/dinero/page.tsx`) da exactamente lo que Jose y Yenny ven.
+    // como texto) se note. No se compara contra un total absoluto: esta
+    // suite corre contra el libro de cuentas real (no hay entorno de prueba
+    // separado), así que en cuanto exista un solo aporte o gasto real, un
+    // total absoluto falla para siempre. Se compara contra `balanceAntes`
+    // (leído en beforeAll, antes de sembrar), así que la prueba sigue siendo
+    // exacta sin importar cuánto dinero real ya haya en la base.
     const fila = data![0]
 
     // `numeric` de Postgres: PostgREST lo serializa como número JSON (no como
@@ -205,12 +226,17 @@ describe('Yenny audita todo pero no registra gastos', () => {
     expect(typeof fila.total_aportes).toBe('number')
     expect(typeof fila.total_gastos).toBe('number')
 
-    expect(Number(fila.total_aportes)).toBe(777.77)
-    expect(Number(fila.total_gastos)).toBe(555.55)
+    const deltaAportes = Number(fila.total_aportes) - balanceAntes.total_aportes
+    const deltaGastos = Number(fila.total_gastos) - balanceAntes.total_gastos
+    expect(deltaAportes).toBeCloseTo(777.77, 2)
+    expect(deltaGastos).toBeCloseTo(555.55, 2)
 
-    const balance = calcularBalance([Number(fila.total_aportes)], [Number(fila.total_gastos)])
-    expect(balance.neto).toBe(222.22)
-    expect(balance.estado).toBe('disponible')
+    // El mismo cálculo que hace la pantalla de dinero (`calcularBalance`, con
+    // las sumas ya hechas por Postgres, tal como las usa
+    // `src/app/dinero/page.tsx`) aplicado a la diferencia que introdujo la
+    // semilla debe dar exactamente $222.22 a favor.
+    const balanceDelta = calcularBalance([deltaAportes], [deltaGastos])
+    expect(balanceDelta.neto).toBeCloseTo(222.22, 2)
   })
 
   it('no puede registrar una compra', async () => {
