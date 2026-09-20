@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next'
+import { Navegacion } from '@/componentes/Navegacion'
+import { obtenerPerfil } from '@/lib/supabase/servidor'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -12,10 +14,15 @@ export const viewport: Viewport = {
   maximumScale: 1,
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const perfil = await obtenerPerfil()
+
   return (
     <html lang="es">
-      <body className="bg-slate-50 text-slate-900 antialiased">{children}</body>
+      <body className="bg-slate-50 text-slate-900 antialiased">
+        {children}
+        {perfil && <Navegacion rol={perfil.rol} />}
+      </body>
     </html>
   )
 }
