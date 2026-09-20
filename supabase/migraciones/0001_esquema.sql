@@ -115,18 +115,40 @@ as $$
 begin
   new.updated_at := now();
 
-  -- Inmutabilidad de contenido: una vez que la solicitud dejó de estar
-  -- pendiente, ni el contenido ni el motivo de rechazo pueden cambiar, sea
-  -- que el estado también cambie en este mismo UPDATE o no. Antes esto solo
-  -- se comprobaba cuando el estado se mantenía igual, así que una transición
-  -- legal (p. ej. comprada -> entregada) podía colarse reescribiendo el
-  -- título o las notas en el mismo UPDATE.
-  if old.estado <> 'pendiente'
-     and (old.titulo, old.cantidad, old.urgencia, old.notas)
-         is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
+  -- La autoría nunca se reasigna. No hay ningún flujo legítimo -- ni de la
+  -- app, ni una corrección administrativa -- que le cambie el dueño a una
+  -- solicitud, así que este candado no tiene excepción para nadie.
+  if new.creada_por is distinct from old.creada_por then
+    raise exception 'La autoría de una solicitud no se puede reasignar';
+  end if;
+
+  -- Inmutabilidad de contenido: solo el propio autor puede cambiar el
+  -- título, la cantidad, la urgencia o las notas, y aun el autor deja de
+  -- poder hacerlo en cuanto la solicitud sale de "pendiente". Esto se
+  -- impone aquí -- no solo en la política de RLS -- porque la política
+  -- "comprador gestiona estado" permite a Jose actualizar la fila para
+  -- cambiar el estado, y RLS es por fila, no por columna: sin este
+  -- candado, Jose podría reescribir el contenido de una solicitud ajena en
+  -- el mismo UPDATE con el que la marca como comprada.
+  --
+  -- auth.uid() es NULL bajo una conexión con la llave de servicio
+  -- (migraciones, scripts de administración, correcciones manuales desde
+  -- Supabase), así que un llamador NULL no se bloquea aquí: el candado es
+  -- para la app, no para el acceso administrativo que el spec ya permite.
+  if (old.titulo, old.cantidad, old.urgencia, old.notas)
+     is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
   then
-    raise exception
-      'La solicitud está en estado % y ya no se puede editar', old.estado;
+    if auth.uid() is not null and auth.uid() <> old.creada_por then
+      raise exception 'Solo el autor de la solicitud puede cambiar su contenido';
+    end if;
+
+    -- Antes esto solo se comprobaba cuando el estado se mantenía igual, así
+    -- que una transición legal (p. ej. comprada -> entregada) podía colarse
+    -- reescribiendo el título o las notas en el mismo UPDATE.
+    if old.estado <> 'pendiente' then
+      raise exception
+        'La solicitud está en estado % y ya no se puede editar', old.estado;
+    end if;
   end if;
 
   -- El motivo de rechazo es el registro de por qué se rechazó algo: una vez
