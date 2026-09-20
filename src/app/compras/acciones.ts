@@ -61,12 +61,18 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
 
   // Si venía de una solicitud, esta pasa a "comprada".
   if (solicitudId) {
-    const { error: errorEstado } = await supabase
+    const { data: solicitudActualizada, error: errorEstado } = await supabase
       .from('solicitudes')
       .update({ estado: 'comprada' })
       .eq('id', solicitudId)
+      .select('id')
 
-    if (errorEstado) {
+    // Igual que en marcarEntregada: un UPDATE que RLS deja en cero filas no
+    // es un error para PostgREST, así que hay que comprobar también que algo
+    // se haya actualizado. Todavía no se subió ninguna factura en este punto
+    // (eso ocurre más abajo), así que deshacer la compra aquí no deja
+    // ninguna evidencia huérfana.
+    if (errorEstado || !solicitudActualizada || solicitudActualizada.length === 0) {
       // La compra quedó guardada pero la solicitud no cambió: se deshace la
       // compra para que no queden las dos cosas diciendo lo contrario.
       await supabase.from('compras').delete().eq('id', compra.id)
