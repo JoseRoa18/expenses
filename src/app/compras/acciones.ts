@@ -220,6 +220,15 @@ export async function rechazarSolicitud(id: string, motivo: string): Promise<Res
  * se le mostraba "Sin factura" como si fuera un hecho, no un fallo de red.
  */
 export async function obtenerEnlacesFacturas(compraId: string): Promise<string[] | null> {
+  // Fix 8: la única acción que toca dinero sin comprobar el rol antes de
+  // tocar la base. Hoy falla cerrado igual (usa la sesión de quien llama, y
+  // RLS ya exige comprador/financista en `facturas`), pero el "arreglo"
+  // obvio si un enlace firmado se comporta raro algún día es cambiar a un
+  // cliente con la llave de servicio -- y ese cambio filtraría fotos a
+  // Alix de inmediato. Se agrega por simetría con el resto de las acciones.
+  const perfil = await obtenerPerfil()
+  if (!perfil || (perfil.rol !== 'comprador' && perfil.rol !== 'financista')) return null
+
   const supabase = await crearClienteServidor()
 
   const { data: facturas, error } = await supabase
