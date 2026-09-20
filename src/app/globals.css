@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+/*
+ * La aplicación tiene un único diseño visual: claro. bg-slate-50, tarjetas
+ * blancas, texto en tonos slate (ver src/app/layout.tsx). No hay una versión
+ * oscura decidida, así que no seguimos el sistema operativo del dispositivo:
+ * color-scheme: light evita que el navegador oscurezca controles nativos
+ * (inputs de fecha y número en las Tareas 8 y 10) cuando el sistema está en
+ * modo oscuro.
+ */
+:root {
+  color-scheme: light;
+}

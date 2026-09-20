@@ -94,12 +94,27 @@ pueda volver a `cancelada` lo impide la base, no la pantalla.
 | `solicitud_id` | uuid → solicitudes | **nullable**: null = compra suelta |
 | `registrada_por` | uuid → profiles | siempre Jose |
 | `descripcion` | text | qué se compró realmente |
-| `monto_bs` | numeric(14,2) | lo que dice la factura |
-| `monto_usd` | numeric(12,2) | lo que costó en dólares |
+| `monto_bs` | numeric(14,2) | lo que dice la factura. **Opcional** |
+| `monto_usd` | numeric(12,2) | lo que costó en dólares. **Obligatorio** |
 | `notas` | text | opcional |
 | `fecha_compra` | date | |
 | `fecha_entrega` | date | null hasta que se entrega |
 | `created_at` | timestamptz | |
+
+### Por qué los dólares son obligatorios y los bolívares no
+
+El balance se calcula en dólares. Una compra sin monto en dólares no se puede
+restar de él: con `1.500 Bs` a secas, la app no sabe si eso fueron 12 dólares o
+40, y la tasa cambia a diario. Ese gasto quedaría fuera del cálculo y Yenny
+vería más dinero disponible del que realmente queda, sin saber que falta contar
+algo.
+
+Jose siempre conoce el monto en dólares, porque es su dinero saliendo. El monto
+en bolívares es el dato de respaldo —sirve para cuadrar contra la factura de
+papel— y lo pone si la tiene delante.
+
+Cuando están los dos, la app muestra la tasa que salió en esa compra. Cuando
+solo está el dólar, no muestra tasa.
 
 La tasa de cambio **no se guarda**: se calcula como `monto_bs / monto_usd` y se
 muestra solo como referencia. Así no hay dos fuentes de verdad que puedan

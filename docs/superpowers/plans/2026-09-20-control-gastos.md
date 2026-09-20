@@ -173,7 +173,9 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 # Secretas: solo servidor y scripts. NUNCA con prefijo NEXT_PUBLIC_
 SUPABASE_SERVICE_ROLE_KEY=
-DATABASE_URL=postgresql://postgres:CONTRASENA@db.TU_PROYECTO.supabase.co:5432/postgres
+# Session Pooler, puerto 5432 (Settings → Database → Connection string → Session pooler).
+# NO uses la conexión directa db.<ref>.supabase.co: solo resuelve a IPv6.
+DATABASE_URL=postgresql://postgres.TU_PROYECTO:CONTRASENA@aws-0-TU_REGION.pooler.supabase.com:5432/postgres
 
 # PIN de cada persona (6 dígitos). Solo se usan al crear las cuentas y en las pruebas.
 PIN_ALIX=
@@ -766,7 +768,11 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
-import 'dotenv/config'
+import { config } from 'dotenv'
+
+// dotenv carga `.env` por defecto; los secretos de este proyecto viven en
+// `.env.local`, asi que hay que nombrarlo explicitamente.
+config({ path: '.env.local', quiet: true })
 
 const aqui = dirname(fileURLToPath(import.meta.url))
 const carpeta = join(aqui, '..', 'migraciones')
@@ -882,10 +888,21 @@ create table if not exists compras (
 
 create table if not exists facturas (
   id            uuid primary key default gen_random_uuid(),
-  compra_id     uuid not null references compras(id) on delete cascade,
+  compra_id     uuid not null references compras(id) on delete restrict,
   storage_path  text not null check (length(trim(storage_path)) > 0),
   created_at    timestamptz not null default now()
 );
+
+-- Nada se borra ni se edita una vez registrado (ver "Fuera de alcance" en el
+-- spec): las facturas son la evidencia de auditoría, así que borrar una
+-- compra nunca debe arrastrar sus facturas. Esta tabla ya existía con
+-- "on delete cascade" en bases ya migradas, así que la corregimos aquí de
+-- forma repetible en vez de depender del "create table if not exists" de
+-- arriba, que no toca tablas existentes.
+alter table facturas drop constraint if exists facturas_compra_id_fkey;
+alter table facturas
+  add constraint facturas_compra_id_fkey
+  foreign key (compra_id) references compras(id) on delete restrict;
 
 create table if not exists aportes (
   id              uuid primary key default gen_random_uuid(),
@@ -914,15 +931,54 @@ as $$
 begin
   new.updated_at := now();
 
-  -- Sin cambio de estado: solo se admite editar si sigue pendiente.
-  if old.estado = new.estado then
-    if old.estado <> 'pendiente'
-       and (old.titulo, old.cantidad, old.urgencia, old.notas)
-           is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
-    then
+  -- La autoría nunca se reasigna. No hay ningún flujo legítimo -- ni de la
+  -- app, ni una corrección administrativa -- que le cambie el dueño a una
+  -- solicitud, así que este candado no tiene excepción para nadie.
+  if new.creada_por is distinct from old.creada_por then
+    raise exception 'La autoría de una solicitud no se puede reasignar';
+  end if;
+
+  -- Inmutabilidad de contenido: solo el propio autor puede cambiar el
+  -- título, la cantidad, la urgencia o las notas, y aun el autor deja de
+  -- poder hacerlo en cuanto la solicitud sale de "pendiente". Esto se
+  -- impone aquí -- no solo en la política de RLS -- porque la política
+  -- "comprador gestiona estado" permite a Jose actualizar la fila para
+  -- cambiar el estado, y RLS es por fila, no por columna: sin este
+  -- candado, Jose podría reescribir el contenido de una solicitud ajena en
+  -- el mismo UPDATE con el que la marca como comprada.
+  --
+  -- auth.uid() es NULL bajo una conexión con la llave de servicio
+  -- (migraciones, scripts de administración, correcciones manuales desde
+  -- Supabase), así que un llamador NULL no se bloquea aquí: el candado es
+  -- para la app, no para el acceso administrativo que el spec ya permite.
+  if (old.titulo, old.cantidad, old.urgencia, old.notas)
+     is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
+  then
+    if auth.uid() is not null and auth.uid() <> old.creada_por then
+      raise exception 'Solo el autor de la solicitud puede cambiar su contenido';
+    end if;
+
+    -- Antes esto solo se comprobaba cuando el estado se mantenía igual, así
+    -- que una transición legal (p. ej. comprada -> entregada) podía colarse
+    -- reescribiendo el título o las notas en el mismo UPDATE.
+    if old.estado <> 'pendiente' then
       raise exception
         'La solicitud está en estado % y ya no se puede editar', old.estado;
     end if;
+  end if;
+
+  -- El motivo de rechazo es el registro de por qué se rechazó algo: una vez
+  -- fijado, no se toca más. El guard es sobre el valor viejo (no nulo), para
+  -- no bloquear la transición legal pendiente -> rechazada, que pasa de
+  -- NULL a un valor en el mismo UPDATE.
+  if old.motivo_rechazo is not null
+     and new.motivo_rechazo is distinct from old.motivo_rechazo
+  then
+    raise exception 'El motivo de rechazo no se puede modificar una vez registrado';
+  end if;
+
+  -- Sin cambio de estado: ya se validó arriba que el contenido no cambió.
+  if old.estado = new.estado then
     return new;
   end if;
 
@@ -956,7 +1012,20 @@ create trigger trg_transicion_solicitud
 Run: `npm run migrar`
 Expected: `Aplicando 0001_esquema.sql... listo`
 
-Si falla con un error de conexión, revisar que `DATABASE_URL` sea la cadena de **Direct connection** (puerto 5432) y no la del pooler (6543): el pooler no admite bien varias sentencias DDL en una sola llamada.
+Si falla con un error de conexión, revisar `DATABASE_URL`. La cadena que funciona
+en este proyecto es la del **Session Pooler**, puerto **5432**:
+
+```
+postgresql://postgres.cdjkosrunejazgojjoxe:CONTRASENA@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+```
+
+Dos cosas que no funcionan y conviene no perder tiempo con ellas:
+
+- La **conexión directa** (`db.cdjkosrunejazgojjoxe.supabase.co`) solo resuelve a
+  IPv6. Desde una red sin IPv6 da `ENOTFOUND`, que parece un error de contraseña
+  pero no lo es.
+- El **Transaction Pooler** (puerto 6543) no admite bien varias sentencias DDL en
+  una sola llamada, que es justo lo que hacen estas migraciones.
 
 - [ ] **Step 4: Verificar que es repetible**
 
@@ -998,7 +1067,11 @@ Crear `supabase/scripts/crear-usuarios.mjs`:
 
 ```js
 import { createClient } from '@supabase/supabase-js'
-import 'dotenv/config'
+import { config } from 'dotenv'
+
+// dotenv carga `.env` por defecto; los secretos de este proyecto viven en
+// `.env.local`, asi que hay que nombrarlo explicitamente.
+config({ path: '.env.local', quiet: true })
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const servicio = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -1266,10 +1339,32 @@ Expected: las tres migraciones dicen `listo`, y luego `Alix: cuenta creada`, `Jo
 
 Crear `tests/permisos.test.ts`. Es una prueba de integración: habla con el Supabase real usando la llave pública, igual que lo haría un navegador.
 
+> **La versión viva de este archivo está en el repositorio y es más larga que lo
+> que sigue.** El esqueleto de abajo se dejó tal cual para que se vea de dónde
+> partió, pero durante la revisión se le añadieron dos cosas sin las cuales no
+> sirve, y que hay que conservar en cualquier reescritura:
+>
+> 1. **Un `beforeAll` que siembra dinero real** (Alix crea una solicitud, Jose la
+>    marca comprada, Jose inserta una compra, su factura y un aporte, todo por
+>    las políticas normales). Sin esa siembra, las tres comprobaciones de que
+>    "Alix no lee compras/aportes/facturas" corren contra tablas vacías y pasan
+>    exactamente igual con la RLS apagada: la prueba que custodia el requisito
+>    central del proyecto no custodia nada.
+> 2. **Un `afterAll` que borra en duro con la llave de servicio**, en orden
+>    seguro para las llaves foráneas (`facturas` → `compras` → `aportes` →
+>    `solicitudes`), rastreando los ids que la propia suite creó. La suite
+>    escribe en la base real y no hay política de DELETE para la app, así que sin
+>    esto cada ejecución deja solicitudes de prueba visibles para Alix y Yenny en
+>    su lista real.
+
 ```ts
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import 'dotenv/config'
+import { config } from 'dotenv'
+
+// dotenv carga `.env` por defecto; los secretos de este proyecto viven en
+// `.env.local`, asi que hay que nombrarlo explicitamente.
+config({ path: '.env.local', quiet: true })
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -2132,7 +2227,13 @@ export default async function Solicitudes() {
       </header>
 
       {puedePedir && (
-        <form action={crearSolicitud} className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
+        <form
+          action={async (datos: FormData) => {
+            'use server'
+            await crearSolicitud(datos)
+          }}
+          className="mb-6 rounded-2xl bg-white p-4 shadow-sm"
+        >
           <h2 className="mb-3 font-medium">Pedir algo</h2>
           <input
             name="titulo"
@@ -3096,7 +3197,13 @@ export default async function Dinero() {
       {perfil.rol === 'comprador' && (
         <section className="mt-6">
           <h2 className="mb-2 font-medium">Registrar dinero recibido</h2>
-          <form action={registrarAporte} className="rounded-2xl bg-white p-4 shadow-sm">
+          <form
+            action={async (datos: FormData) => {
+              'use server'
+              await registrarAporte(datos)
+            }}
+            className="rounded-2xl bg-white p-4 shadow-sm"
+          >
             <label className="mb-2 block">
               <span className="mb-1 block text-xs text-slate-500">Monto en dólares</span>
               <input
