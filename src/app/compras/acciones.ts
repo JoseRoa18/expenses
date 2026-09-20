@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
 import { parsearMonto } from '@/lib/montos'
 
-type Resultado = { error: string | null; advertencia?: string }
+type Resultado = { error: string | null; advertencia?: string; facturasFallidas?: number }
 
 // Techo defensivo: ningún gasto real de esta casa se acerca a esto. Sirve
 // para atrapar un error de escritura (un cero de más) con un mensaje en
@@ -77,9 +77,34 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
     }
   }
 
+  // Critical 2: las fotos ya se subieron desde el navegador directo al
+  // bucket (ver FormularioCompra) con la sesión del propio Jose -- esta
+  // acción nunca recibe los bytes de la imagen, solo las rutas donde ya
+  // quedaron. Next 16 limita el body de una Server Action a 1 MB por
+  // defecto, y Vercel impone un techo duro de 4.5 MB que ni siquiera se
+  // puede subir: una foto real de un teléfono (2-6 MB) nunca hubiera
+  // pasado por aquí. `compra_id` lo genera el cliente (crypto.randomUUID())
+  // antes de subir, porque la ruta de cada archivo en el bucket se arma
+  // como "<compra_id>/<archivo>" y hace falta saber el id antes de que la
+  // fila de `compras` exista.
+  const compraId = String(datos.get('compra_id') ?? '').trim() || crypto.randomUUID()
+
+  let rutasFacturas: string[] = []
+  try {
+    const crudo = JSON.parse(String(datos.get('rutas_facturas') ?? '[]'))
+    if (Array.isArray(crudo)) {
+      rutasFacturas = crudo.filter(
+        (r): r is string => typeof r === 'string' && r.startsWith(`${compraId}/`),
+      )
+    }
+  } catch {
+    rutasFacturas = []
+  }
+
   const { data: compra, error } = await supabase
     .from('compras')
     .insert({
+      id: compraId,
       solicitud_id: solicitudId,
       registrada_por: perfil.id,
       descripcion,
@@ -107,34 +132,17 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
     }
   }
 
-  // Facturas: se suben al bucket privado bajo la carpeta de esta compra.
-  const archivos = datos.getAll('facturas').filter((f): f is File => f instanceof File && f.size > 0)
-
-  // La compra ya es legítima y ya está guardada: deshacerla porque una foto
-  // no subió dejaría a Jose sin registrar un gasto real que ya hizo, parado
-  // en una tienda con el papel en la mano. Se cuentan los fallos para
-  // avisarle, en vez de fallar todo el envío.
+  // Las fotos ya están en el bucket (o no se tomó ninguna); aquí solo se
+  // registra, por cada una, la fila de `facturas` que la asocia a esta
+  // compra. Un fallo en este INSERT (rarísimo: ya pasamos por RLS al subir)
+  // deja la imagen huérfana en el bucket -- sin fila, es como si no
+  // existiera para Jose y Yenny -- así que se cuenta para avisar, pero no
+  // se deshace la compra: es un gasto real que ya ocurrió.
   let facturasFallidas = 0
-
-  for (const archivo of archivos) {
-    const extension = archivo.name.split('.').pop() ?? 'jpg'
-    const ruta = `${compra.id}/${crypto.randomUUID()}.${extension}`
-
-    const { error: errorSubida } = await supabase.storage
-      .from('facturas')
-      .upload(ruta, archivo, { contentType: archivo.type })
-
-    if (errorSubida) {
-      facturasFallidas++
-      continue
-    }
-
+  for (const ruta of rutasFacturas) {
     const { error: errorFactura } = await supabase
       .from('facturas')
       .insert({ compra_id: compra.id, storage_path: ruta })
-
-    // La imagen ya quedó en el bucket, pero sin la fila que la asocia a esta
-    // compra: para Jose y para Yenny es exactamente como si no existiera.
     if (errorFactura) facturasFallidas++
   }
 
@@ -142,17 +150,7 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
   revalidatePath('/solicitudes')
   revalidatePath('/dinero')
 
-  if (facturasFallidas > 0) {
-    const advertencia =
-      facturasFallidas === archivos.length
-        ? archivos.length === 1
-          ? 'La compra se guardó, pero la foto de la factura no se pudo subir. Guarda el papel: el sistema no tiene evidencia de esta compra.'
-          : `La compra se guardó, pero ninguna de las ${archivos.length} fotos se pudo subir. Guarda esos papeles: el sistema no tiene evidencia de esta compra.`
-        : `La compra se guardó, pero ${facturasFallidas} de ${archivos.length} foto(s) de factura no se pudieron subir. Guarda esos papeles.`
-    return { error: null, advertencia }
-  }
-
-  return { error: null }
+  return { error: null, facturasFallidas: facturasFallidas > 0 ? facturasFallidas : undefined }
 }
 
 export async function marcarEntregada(compraId: string): Promise<Resultado> {

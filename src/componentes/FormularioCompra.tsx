@@ -2,9 +2,21 @@
 
 import { useState, useTransition } from 'react'
 import { registrarCompra } from '@/app/compras/acciones'
+import { crearClienteNavegador } from '@/lib/supabase/navegador'
 import { tasaImplicita } from '@/lib/balance'
 import { formatearBs, formatearUsd } from '@/lib/formato'
 import { parsearMonto } from '@/lib/montos'
+import { ERROR_CONEXION } from '@/lib/errores'
+
+// Mismo límite que el bucket 'facturas' (supabase/migraciones/0003), para
+// avisarle a Jose ANTES de intentar subir en vez de dejar que el bucket lo
+// rechace después de que ya escribió todo el formulario. Una foto de
+// factura tomada con el teléfono pesa 2-6 MB: muy por debajo de esto, pero
+// muy por encima del límite de 1 MB (Next) / 4.5 MB (Vercel) que tendría un
+// <input type=file> si sus bytes viajaran dentro de esta Server Action --
+// por eso se suben aparte, directo al bucket, antes de llamar a
+// registrarCompra.
+const TAMANO_MAXIMO_FACTURA = 10 * 1024 * 1024
 
 export function FormularioCompra({
   solicitudId,
@@ -48,20 +60,85 @@ export function FormularioCompra({
       return
     }
 
+    const archivos = datos.getAll('facturas').filter((f): f is File => f instanceof File && f.size > 0)
+
+    // Se rechaza ANTES de tocar la red: escribir todo el formulario para
+    // enterarse recién al final de que la foto pesa demasiado (y perderlo
+    // todo porque no había try/catch ni error.tsx) es exactamente el
+    // defecto que se corrige aquí.
+    const archivoGrande = archivos.find((a) => a.size > TAMANO_MAXIMO_FACTURA)
+    if (archivoGrande) {
+      setError(
+        `La foto "${archivoGrande.name}" pesa más de 10 MB. Usa una foto más liviana o comprime el PDF.`,
+      )
+      return
+    }
+
+    // No debe viajar dentro del FormData que llega a la Server Action: eso
+    // es exactamente el body grande que Next/Vercel rechazan. Las fotos se
+    // suben aparte, directo al bucket (ver más abajo).
+    datos.delete('facturas')
+
     iniciar(async () => {
-      const resultado = await registrarCompra(datos)
+      const compraId = crypto.randomUUID()
+      const rutas: string[] = []
+      let fallosSubida = 0
+
+      if (archivos.length > 0) {
+        const navegador = crearClienteNavegador()
+        for (const archivo of archivos) {
+          const extension = archivo.name.split('.').pop() || 'jpg'
+          const ruta = `${compraId}/${crypto.randomUUID()}.${extension}`
+          try {
+            const { error: errorSubida } = await navegador.storage
+              .from('facturas')
+              .upload(ruta, archivo, { contentType: archivo.type || 'application/octet-stream' })
+            if (errorSubida) {
+              fallosSubida++
+              continue
+            }
+            rutas.push(ruta)
+          } catch {
+            fallosSubida++
+          }
+        }
+      }
+
+      datos.set('compra_id', compraId)
+      datos.set('rutas_facturas', JSON.stringify(rutas))
+
+      let resultado
+      try {
+        resultado = await registrarCompra(datos)
+      } catch {
+        // Igual que en TecladoPin: un fallo que ni siquiera llegó a devolver
+        // { error } (red caída, servidor inalcanzable). Sin este catch, Jose
+        // perdía la descripción y los dos montos que ya había escrito en la
+        // pantalla de error en inglés de Next.
+        setError(ERROR_CONEXION)
+        return
+      }
+
       setError(resultado.error)
       if (!resultado.error) {
         setMontoBs('')
         setMontoUsd('')
       }
-      if (resultado.advertencia) {
+
+      const fallosTotal = fallosSubida + (resultado.facturasFallidas ?? 0)
+      if (!resultado.error && fallosTotal > 0) {
         // Cuando la compra viene de una solicitud, en cuanto esta pasa a
         // "comprada" el formulario entero se oculta (ver AccionesSolicitud):
         // un texto en pantalla podría desaparecer antes de que Jose llegue a
         // leerlo. Una alerta nativa no depende de que este componente siga
         // visible ni montado para que él la vea.
-        window.alert(resultado.advertencia)
+        window.alert(
+          archivos.length === 1
+            ? 'La compra se guardó, pero la foto de la factura no se pudo subir. Guarda el papel: el sistema no tiene evidencia de esta compra.'
+            : fallosTotal === archivos.length
+              ? `La compra se guardó, pero ninguna de las ${archivos.length} fotos se pudo subir. Guarda esos papeles: el sistema no tiene evidencia de esta compra.`
+              : `La compra se guardó, pero ${fallosTotal} de ${archivos.length} foto(s) de factura no se pudieron subir. Guarda esos papeles.`,
+        )
       }
     })
   }
@@ -145,7 +222,7 @@ export function FormularioCompra({
       />
 
       <label className="mb-3 block">
-        <span className="mb-1 block text-xs text-slate-500">Foto(s) de la factura</span>
+        <span className="mb-1 block text-xs text-slate-500">Foto(s) de la factura (máx. 10 MB c/u)</span>
         <input
           name="facturas"
           type="file"
