@@ -42,6 +42,9 @@ export function TecladoPin({ persona, alVolver }: { persona: string; alVolver: (
         // de servidor no se puede envolver en try/catch sin capturar
         // también su propio mecanismo de control de flujo). Navegamos
         // desde el cliente en su lugar.
+        // Se refresca antes de navegar para que '/' no se sirva desde la
+        // caché de rutas del cliente con el estado de sesión anterior.
+        router.refresh()
         router.push('/')
       } catch {
         // Un fallo que ni siquiera llegó a devolver { error } (red caída,
