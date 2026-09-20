@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { calcularBalance } from '@/lib/balance'
 
 // dotenv carga `.env` por defecto; los secretos de este proyecto viven en
 // `.env.local`, asi que hay que nombrarlo explicitamente.
@@ -179,12 +180,37 @@ describe('Yenny audita todo pero no registra gastos', () => {
     expect(error).toBeNull()
   })
 
-  it('obtiene el balance', async () => {
+  it('obtiene el balance, y el número exacto que vería en pantalla', async () => {
     const { data, error } = await yenny.rpc('obtener_balance')
     expect(error).toBeNull()
     expect(data).toHaveLength(1)
     expect(data![0]).toHaveProperty('total_aportes')
     expect(data![0]).toHaveProperty('total_gastos')
+
+    // La semilla de este archivo mete exactamente un aporte de $777.77 y una
+    // compra de $555.55 -- montos con centavos, elegidos a propósito para que
+    // un `numeric` mal convertido (redondeo, truncamiento, o una suma hecha
+    // como texto) se note. Comprobar solo que las propiedades existen deja
+    // pasar un backend que devolviera cualquier número; aquí se comprueba el
+    // valor real y que el mismo cálculo que hace la pantalla de dinero
+    // (`calcularBalance`, con las sumas ya hechas por Postgres, tal como las
+    // usa `src/app/dinero/page.tsx`) da exactamente lo que Jose y Yenny ven.
+    const fila = data![0]
+
+    // `numeric` de Postgres: PostgREST lo serializa como número JSON (no como
+    // string entrecomillado), así que supabase-js ya entrega un `number` de
+    // JS aquí, no un string -- `Number()` en la pantalla es un no-op, no una
+    // conversión que esté haciendo trabajo real. Se deja constancia con este
+    // chequeo de tipo en vez de solo suponerlo.
+    expect(typeof fila.total_aportes).toBe('number')
+    expect(typeof fila.total_gastos).toBe('number')
+
+    expect(Number(fila.total_aportes)).toBe(777.77)
+    expect(Number(fila.total_gastos)).toBe(555.55)
+
+    const balance = calcularBalance([Number(fila.total_aportes)], [Number(fila.total_gastos)])
+    expect(balance.neto).toBe(222.22)
+    expect(balance.estado).toBe('disponible')
   })
 
   it('no puede registrar una compra', async () => {
