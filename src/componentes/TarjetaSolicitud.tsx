@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { EtiquetaEstado } from '@/componentes/EtiquetaEstado'
+import { AccionesSolicitud } from '@/componentes/AccionesSolicitud'
 import { puedeEditar, puedeCancelar } from '@/lib/solicitudes'
 import { formatearFecha } from '@/lib/formato'
 import { cancelarSolicitud, editarSolicitud } from '@/app/solicitudes/acciones'
@@ -11,10 +12,12 @@ export function TarjetaSolicitud({
   solicitud,
   autor,
   esAutor,
+  esComprador,
 }: {
   solicitud: Solicitud
   autor: string
   esAutor: boolean
+  esComprador: boolean
 }) {
   const [editando, setEditando] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -137,6 +140,8 @@ export function TarjetaSolicitud({
           )}
         </span>
       </div>
+
+      {esComprador && <AccionesSolicitud solicitud={solicitud} />}
     </article>
   )
 }

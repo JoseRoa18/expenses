@@ -73,6 +73,7 @@ export default async function Solicitudes() {
             solicitud={s}
             autor={nombrePorId.get(s.creada_por) ?? '—'}
             esAutor={s.creada_por === perfil.id}
+            esComprador={perfil.rol === 'comprador'}
           />
         ))}
         {(solicitudes ?? []).length === 0 && (
