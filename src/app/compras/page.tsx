@@ -76,7 +76,10 @@ export default async function Compras() {
                       await marcarEntregada(compra.id)
                     }}
                   >
-                    <button type="submit" className="font-medium text-emerald-700 underline">
+                    <button
+                      type="submit"
+                      className="flex h-11 items-center px-2 font-medium text-emerald-700 underline"
+                    >
                       Marcar entregada
                     </button>
                   </form>
