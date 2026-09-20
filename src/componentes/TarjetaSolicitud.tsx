@@ -125,12 +125,12 @@ export function TarjetaSolicitud({
           )}
         </span>
 
-        <span className="flex gap-3">
+        <span className="flex items-center gap-1">
           {puedeEditar(solicitud.estado, esAutor) && (
             <button
               type="button"
               onClick={() => setEditando(true)}
-              className="text-slate-500 underline"
+              className="flex h-11 items-center px-2 text-slate-500 underline"
             >
               Editar
             </button>
@@ -140,7 +140,7 @@ export function TarjetaSolicitud({
               type="button"
               disabled={pendiente}
               onClick={cancelar}
-              className="text-slate-500 underline disabled:opacity-50"
+              className="flex h-11 items-center px-2 text-slate-500 underline disabled:opacity-50"
             >
               Cancelar
             </button>
