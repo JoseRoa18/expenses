@@ -72,10 +72,21 @@ create table if not exists compras (
 
 create table if not exists facturas (
   id            uuid primary key default gen_random_uuid(),
-  compra_id     uuid not null references compras(id) on delete cascade,
+  compra_id     uuid not null references compras(id) on delete restrict,
   storage_path  text not null check (length(trim(storage_path)) > 0),
   created_at    timestamptz not null default now()
 );
+
+-- Nada se borra ni se edita una vez registrado (ver "Fuera de alcance" en el
+-- spec): las facturas son la evidencia de auditoría, así que borrar una
+-- compra nunca debe arrastrar sus facturas. Esta tabla ya existía con
+-- "on delete cascade" en bases ya migradas, así que la corregimos aquí de
+-- forma repetible en vez de depender del "create table if not exists" de
+-- arriba, que no toca tablas existentes.
+alter table facturas drop constraint if exists facturas_compra_id_fkey;
+alter table facturas
+  add constraint facturas_compra_id_fkey
+  foreign key (compra_id) references compras(id) on delete restrict;
 
 create table if not exists aportes (
   id              uuid primary key default gen_random_uuid(),
@@ -104,15 +115,32 @@ as $$
 begin
   new.updated_at := now();
 
-  -- Sin cambio de estado: solo se admite editar si sigue pendiente.
+  -- Inmutabilidad de contenido: una vez que la solicitud dejó de estar
+  -- pendiente, ni el contenido ni el motivo de rechazo pueden cambiar, sea
+  -- que el estado también cambie en este mismo UPDATE o no. Antes esto solo
+  -- se comprobaba cuando el estado se mantenía igual, así que una transición
+  -- legal (p. ej. comprada -> entregada) podía colarse reescribiendo el
+  -- título o las notas en el mismo UPDATE.
+  if old.estado <> 'pendiente'
+     and (old.titulo, old.cantidad, old.urgencia, old.notas)
+         is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
+  then
+    raise exception
+      'La solicitud está en estado % y ya no se puede editar', old.estado;
+  end if;
+
+  -- El motivo de rechazo es el registro de por qué se rechazó algo: una vez
+  -- fijado, no se toca más. El guard es sobre el valor viejo (no nulo), para
+  -- no bloquear la transición legal pendiente -> rechazada, que pasa de
+  -- NULL a un valor en el mismo UPDATE.
+  if old.motivo_rechazo is not null
+     and new.motivo_rechazo is distinct from old.motivo_rechazo
+  then
+    raise exception 'El motivo de rechazo no se puede modificar una vez registrado';
+  end if;
+
+  -- Sin cambio de estado: ya se validó arriba que el contenido no cambió.
   if old.estado = new.estado then
-    if old.estado <> 'pendiente'
-       and (old.titulo, old.cantidad, old.urgencia, old.notas)
-           is distinct from (new.titulo, new.cantidad, new.urgencia, new.notas)
-    then
-      raise exception
-        'La solicitud está en estado % y ya no se puede editar', old.estado;
-    end if;
     return new;
   end if;
 
