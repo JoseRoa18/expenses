@@ -4,6 +4,9 @@ import type { Perfil } from '@/lib/tipos'
 import { exigirEntorno } from '@/lib/entorno'
 
 export async function crearClienteServidor() {
+  // Nota: lanza si faltan las variables. Durante `next build`, Next
+  // prerenderiza el layout -- que llama a obtenerPerfil() -- asi que quien
+  // llame en ese camino debe capturarlo o la compilacion entera falla.
   const entorno = exigirEntorno()
   const almacen = await cookies()
 
@@ -30,7 +33,18 @@ export async function crearClienteServidor() {
 
 /** El perfil de quien está en sesión, o null si no hay nadie o si la fila de `profiles` no se pudo leer. */
 export async function obtenerPerfil(): Promise<Perfil | null> {
-  const supabase = await crearClienteServidor()
+  // Sin variables de entorno no hay a quien preguntar, y eso pasa tanto en
+  // `next build` (donde el layout se prerenderiza sin ellas) como en un
+  // despliegue mal configurado. En ambos casos "no hay nadie en sesion" es la
+  // respuesta correcta; quien avisa del problema es el middleware, que lo
+  // detecta antes y muestra que variable falta.
+  let supabase
+  try {
+    supabase = await crearClienteServidor()
+  } catch {
+    return null
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
@@ -78,7 +92,19 @@ export class SinPerfil extends Error {
  * redirigir a `/entrar`, es el comportamiento correcto.
  */
 export async function obtenerPerfilObligatorio(): Promise<Perfil | null> {
-  const supabase = await crearClienteServidor()
+  // Sin variables de entorno no hay a quién preguntar. Pasa en `next build`,
+  // donde Next prerenderiza estas páginas sin ellas, y en un despliegue mal
+  // configurado. En ambos casos la respuesta correcta es "no hay sesión": la
+  // página redirige a /entrar y allí el middleware, que sí detecta el problema
+  // antes, muestra qué variable falta. Si esto lanzara, la compilación entera
+  // fallaría y no habría despliegue donde ver el aviso.
+  let supabase
+  try {
+    supabase = await crearClienteServidor()
+  } catch {
+    return null
+  }
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
