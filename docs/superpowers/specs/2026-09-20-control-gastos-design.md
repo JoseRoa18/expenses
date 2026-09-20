@@ -208,14 +208,37 @@ solicitudes. Puede crear solicitudes igual que Alix.
 - **Los permisos viven en la base de datos** (Row Level Security), no en la app.
   Alix no puede leer montos ni aunque consulte la base directamente. Para que se
   filtrara información habría que equivocarse en dos capas a la vez.
+### Cada quien elige su propio PIN
+
+Nadie recibe un PIN asignado. La primera vez que una persona toca su nombre,
+la app le pide que cree el suyo y lo repita. A partir de ese momento su cuenta
+queda cerrada: la opción de crear PIN no vuelve a aparecer para ella.
+
+**El riesgo, aceptado a sabiendas por el dueño del proyecto:** mientras una
+cuenta no tenga PIN, cualquiera que abra la dirección puede tocar ese nombre y
+ponerle uno, quedándose con la cuenta. No hace falta un ataque; basta con que
+la dirección circule antes de que los tres hayan entrado.
+
+Se planteó la alternativa (un PIN temporal que el dueño reparte y la app obliga
+a cambiar, como hace un banco) y se descartó a favor de la simplicidad de uso.
+
+Lo que sí acota el riesgo:
+
+- La ventana se cierra sola y por persona, en cuanto esa persona crea su PIN.
+- Se registra cuándo se configuró cada uno, para poder mirarlo si hace falta.
+- El dueño puede reabrirla desde Supabase si alguien olvida su PIN.
+- Operativamente: que los tres entren el mismo día, y que la dirección no
+  circule hasta entonces. Eso reduce la ventana de días a minutos.
+
 - **El PIN es la contraseña de una cuenta real.** Cada persona tiene un correo
   interno fijo (`alix@expenses.local`, etc.) que nunca ve. La pantalla de login
   traduce "toqué mi nombre + tecleé mi PIN" a un inicio de sesión normal de
   Supabase. Esto es lo que hace que los permisos de base de datos funcionen.
   - PIN de 6 dígitos.
   - Supabase limita los intentos repetidos de inicio de sesión por su cuenta.
-  - Los PIN los establece el dueño del proyecto directamente; nunca viajan por el
-    chat ni quedan en el repositorio.
+  - Cada persona establece su propio PIN la primera vez que entra; nunca viajan
+    por el chat ni quedan en el repositorio, y el dueño del proyecto tampoco los
+    conoce.
 - **Sin notificaciones** en esta versión. Jose ve las pendientes al abrir la app.
 
 ### Riesgo aceptado
