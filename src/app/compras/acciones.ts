@@ -2,8 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { crearClienteServidor, obtenerPerfil } from '@/lib/supabase/servidor'
+import { parsearMonto } from '@/lib/montos'
 
 type Resultado = { error: string | null }
+
+// Techo defensivo: ningún gasto real de esta casa se acerca a esto. Sirve
+// para atrapar un error de escritura (un cero de más) con un mensaje en
+// español, en vez de dejar que lo atrape el overflow de `numeric(14,2)` en
+// la base de datos con un error genérico. El límite de la columna es mucho
+// más alto que esto; este es un límite de sentido común, no técnico.
+const MONTO_MAXIMO = 10_000_000
 
 export async function registrarCompra(datos: FormData): Promise<Resultado> {
   const perfil = await obtenerPerfil()
@@ -12,14 +20,26 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
 
   const solicitudId = String(datos.get('solicitud_id') ?? '') || null
   const descripcion = String(datos.get('descripcion') ?? '').trim()
-  const montoBs = Number(datos.get('monto_bs'))
-  const montoUsd = Number(datos.get('monto_usd'))
   const notas = String(datos.get('notas') ?? '').trim()
   const fechaCompra = String(datos.get('fecha_compra') ?? '')
 
+  // El navegador no es de fiar: esta acción es el último punto en el que se
+  // puede rechazar un monto mal escrito antes de que se convierta en una
+  // fila. `parsearMonto` entiende "1.500" (mil quinientos) y "12,50" (doce
+  // con cincuenta) a la venezolana; si no puede leer el texto, no adivina.
+  const montoBs = parsearMonto(String(datos.get('monto_bs') ?? ''))
+  const montoUsd = parsearMonto(String(datos.get('monto_usd') ?? ''))
+
   if (!descripcion) return { error: 'Escribe qué compraste' }
-  if (!Number.isFinite(montoBs) || montoBs < 0) return { error: 'Monto en Bs no válido' }
-  if (!Number.isFinite(montoUsd) || montoUsd <= 0) return { error: 'Monto en dólares no válido' }
+  if (montoBs === null || montoBs < 0) {
+    return { error: 'El monto en Bs no se entiende. Escríbelo así: 1.500,00' }
+  }
+  if (montoUsd === null || montoUsd <= 0) {
+    return { error: 'El monto en dólares no se entiende. Escríbelo así: 12,50' }
+  }
+  if (montoBs > MONTO_MAXIMO || montoUsd > MONTO_MAXIMO) {
+    return { error: 'Ese monto es demasiado alto. Revisa que no tenga un cero de más.' }
+  }
 
   const supabase = await crearClienteServidor()
 
