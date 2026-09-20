@@ -31,6 +31,13 @@ export function TarjetaSolicitud({
     })
   }
 
+  function cancelar() {
+    iniciar(async () => {
+      const resultado = await cancelarSolicitud(solicitud.id)
+      setError(resultado.error)
+    })
+  }
+
   if (editando) {
     return (
       <article className="rounded-2xl bg-white p-4 shadow-sm">
@@ -132,7 +139,7 @@ export function TarjetaSolicitud({
             <button
               type="button"
               disabled={pendiente}
-              onClick={() => iniciar(() => { cancelarSolicitud(solicitud.id) })}
+              onClick={cancelar}
               className="text-slate-500 underline disabled:opacity-50"
             >
               Cancelar
@@ -140,6 +147,8 @@ export function TarjetaSolicitud({
           )}
         </span>
       </div>
+
+      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
 
       {esComprador && <AccionesSolicitud solicitud={solicitud} />}
     </article>
