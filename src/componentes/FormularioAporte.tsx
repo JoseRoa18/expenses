@@ -5,6 +5,8 @@ import { registrarAporte } from '@/app/dinero/acciones'
 import { formatearUsd, hoyVenezuela } from '@/lib/formato'
 import { parsearMonto, MONTO_MAXIMO } from '@/lib/montos'
 import { ERROR_CONEXION } from '@/lib/errores'
+import { Boton } from '@/componentes/Boton'
+import { Campo, CLASE_ENTRADA } from '@/componentes/Campo'
 
 export function FormularioAporte() {
   const [montoUsd, setMontoUsd] = useState('')
@@ -48,9 +50,26 @@ export function FormularioAporte() {
   }
 
   return (
-    <form action={enviar} className="rounded-2xl bg-white p-4 shadow-sm">
-      <label className="mb-2 block">
-        <span className="mb-1 block text-xs text-slate-500">Monto en dólares</span>
+    <form action={enviar} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
+      <Campo
+        etiqueta="Monto en dólares"
+        className="mb-2"
+        pie={
+          <>
+            {usdExcede && (
+              <span className="text-red-600">
+                Demasiado alto. Revisa que no tenga un cero de más.
+              </span>
+            )}
+            {!usdExcede && usdEscrito && usdParseado === null && (
+              <span className="text-red-600">No se entiende. Ej: 12,50</span>
+            )}
+            {!usdInvalido && usdParseado !== null && (
+              <span className="cifras text-slate-500">Se guardará: {formatearUsd(usdParseado)}</span>
+            )}
+          </>
+        }
+      >
         <input
           name="monto_usd"
           type="text"
@@ -59,57 +78,37 @@ export function FormularioAporte() {
           required
           value={montoUsd}
           onChange={(e) => setMontoUsd(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 px-3 py-3"
+          className={`${CLASE_ENTRADA} cifras`}
         />
-        <p className="mt-1 min-h-4 text-xs">
-          {usdExcede && (
-            <span className="text-red-600">Demasiado alto. Revisa que no tenga un cero de más.</span>
-          )}
-          {!usdExcede && usdEscrito && usdParseado === null && (
-            <span className="text-red-600">No se entiende. Ej: 12,50</span>
-          )}
-          {!usdInvalido && usdParseado !== null && (
-            <span className="text-slate-500">Se guardará: {formatearUsd(usdParseado)}</span>
-          )}
-        </p>
-      </label>
+      </Campo>
 
-      <div className="mb-2 grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Fecha</span>
+      <div className="mb-3 grid grid-cols-2 gap-2">
+        <Campo etiqueta="Fecha">
           <input
             name="fecha"
             type="date"
             defaultValue={hoyVenezuela()}
-            className="w-full rounded-xl border border-slate-200 px-3 py-3"
+            className={`${CLASE_ENTRADA} cifras`}
           />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Por dónde</span>
-          <input
-            name="metodo"
-            placeholder="Zelle, efectivo..."
-            className="w-full rounded-xl border border-slate-200 px-3 py-3"
-          />
-        </label>
+        </Campo>
+        <Campo etiqueta="Por dónde">
+          <input name="metodo" placeholder="Zelle, efectivo..." className={CLASE_ENTRADA} />
+        </Campo>
       </div>
 
-      <textarea
-        name="notas"
-        rows={2}
-        placeholder="Notas (opcional)"
-        className="mb-3 w-full rounded-xl border border-slate-200 px-3 py-3"
-      />
+      <Campo etiqueta="Notas" className="mb-4">
+        <textarea name="notas" rows={2} placeholder="Opcional" className={CLASE_ENTRADA} />
+      </Campo>
 
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="mb-2 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
 
-      <button
-        type="submit"
-        disabled={pendiente || usdInvalido}
-        className="h-12 w-full rounded-xl bg-slate-900 font-medium text-white disabled:opacity-50"
-      >
+      <Boton type="submit" disabled={pendiente || usdInvalido} className="w-full">
         {pendiente ? 'Guardando...' : 'Registrar'}
-      </button>
+      </Boton>
     </form>
   )
 }

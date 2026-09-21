@@ -4,7 +4,8 @@ import { FormularioCompra } from '@/componentes/FormularioCompra'
 import { VisorFacturas } from '@/componentes/VisorFacturas'
 import { BotonMarcarEntregada } from '@/componentes/BotonMarcarEntregada'
 import { obtenerEnlacesFacturas } from '@/app/compras/acciones'
-import { BotonSalir } from '@/componentes/BotonSalir'
+import { Encabezado } from '@/componentes/Encabezado'
+import { Vacio } from '@/componentes/Vacio'
 import { formatearUsd, formatearBs, formatearFecha } from '@/lib/formato'
 import { tasaImplicita } from '@/lib/balance'
 import type { Compra } from '@/lib/tipos'
@@ -36,15 +37,12 @@ export default async function Compras() {
   )
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6 pb-24">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Gastos</h1>
-        <BotonSalir nombre={perfil.nombre} />
-      </header>
+    <main className="con-barra mx-auto max-w-md px-4 py-6">
+      <Encabezado titulo="Gastos" nombre={perfil.nombre} />
 
       {perfil.rol === 'comprador' && (
         <section className="mb-6">
-          <h2 className="mb-2 font-medium">Registrar gasto suelto</h2>
+          <h2 className="mb-2 font-semibold text-slate-900">Registrar gasto suelto</h2>
           <FormularioCompra />
         </section>
       )}
@@ -59,13 +57,18 @@ export default async function Compras() {
         {compras?.map((compra) => {
           const tasa = tasaImplicita(compra.monto_bs, compra.monto_usd)
           return (
-            <article key={compra.id} className="rounded-2xl bg-white p-4 shadow-sm">
+            <article
+              key={compra.id}
+              className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5"
+            >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="min-w-0 truncate font-medium">{compra.descripcion}</h3>
-                <span className="shrink-0 font-semibold">{formatearUsd(compra.monto_usd)}</span>
+                <span className="cifras shrink-0 font-semibold">
+                  {formatearUsd(compra.monto_usd)}
+                </span>
               </div>
 
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="cifras mt-1 text-sm text-slate-600">
                 {formatearBs(compra.monto_bs)}
                 {tasa !== null && ` · tasa ${formatearBs(tasa)}/$`}
               </p>
@@ -76,7 +79,7 @@ export default async function Compras() {
                 <VisorFacturas enlaces={enlacesPorCompra.get(compra.id) ?? null} />
               </div>
 
-              <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
+              <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
                 <span>
                   Comprado {formatearFecha(compra.fecha_compra)}
                   {compra.fecha_entrega && ` · entregado ${formatearFecha(compra.fecha_entrega)}`}
@@ -91,7 +94,14 @@ export default async function Compras() {
         })}
 
         {compras !== null && compras.length === 0 && (
-          <p className="py-12 text-center text-slate-400">Todavía no hay gastos.</p>
+          <Vacio
+            titulo="Todavía no hay gastos"
+            ayuda={
+              perfil.rol === 'comprador'
+                ? 'Registra arriba lo que compres y sube su factura.'
+                : 'Cuando Jose registre una compra, la verás aquí con su factura.'
+            }
+          />
         )}
       </div>
     </main>

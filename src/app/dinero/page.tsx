@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { crearClienteServidor, obtenerPerfilObligatorio } from '@/lib/supabase/servidor'
 import { ResumenBalance } from '@/componentes/ResumenBalance'
 import { FormularioAporte } from '@/componentes/FormularioAporte'
-import { BotonSalir } from '@/componentes/BotonSalir'
+import { Encabezado } from '@/componentes/Encabezado'
+import { Vacio } from '@/componentes/Vacio'
 import { calcularBalance } from '@/lib/balance'
 import { formatearUsd, formatearFecha } from '@/lib/formato'
 import type { Aporte } from '@/lib/tipos'
@@ -48,11 +49,8 @@ export default async function Dinero() {
   const aportes = errorAportes ? null : ((datosAportes as Aporte[]) ?? [])
 
   return (
-    <main className="mx-auto max-w-md px-4 py-6 pb-24">
-      <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Balance</h1>
-        <BotonSalir nombre={perfil.nombre} />
-      </header>
+    <main className="con-barra mx-auto max-w-md px-4 py-6">
+      <Encabezado titulo="Balance" nombre={perfil.nombre} />
 
       {balance ? (
         <ResumenBalance balance={balance} />
@@ -80,13 +78,13 @@ export default async function Dinero() {
 
       {perfil.rol === 'comprador' && (
         <section className="mt-6">
-          <h2 className="mb-2 font-medium">Registrar dinero recibido</h2>
+          <h2 className="mb-2 font-semibold text-slate-900">Registrar dinero recibido</h2>
           <FormularioAporte />
         </section>
       )}
 
       <section className="mt-6">
-        <h2 className="mb-2 font-medium">Dinero recibido</h2>
+        <h2 className="mb-2 font-semibold text-slate-900">Dinero recibido</h2>
         <div className="flex flex-col gap-2">
           {aportes === null && (
             <p className="py-8 text-center text-red-600">
@@ -96,11 +94,11 @@ export default async function Dinero() {
           {aportes?.map((aporte) => (
             <article
               key={aporte.id}
-              className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm"
+              className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5"
             >
               <div>
-                <p className="font-medium">{formatearUsd(aporte.monto_usd)}</p>
-                <p className="text-xs text-slate-500">
+                <p className="cifras font-semibold">{formatearUsd(aporte.monto_usd)}</p>
+                <p className="cifras text-xs text-slate-500">
                   {formatearFecha(aporte.fecha)}
                   {aporte.metodo && ` · ${aporte.metodo}`}
                 </p>
@@ -111,7 +109,14 @@ export default async function Dinero() {
             </article>
           ))}
           {aportes !== null && aportes.length === 0 && (
-            <p className="py-8 text-center text-slate-400">Todavía no hay aportes.</p>
+            <Vacio
+              titulo="Todavía no hay dinero registrado"
+              ayuda={
+                perfil.rol === 'comprador'
+                  ? 'Registra arriba el dinero que recibas.'
+                  : 'Cuando Jose registre el dinero que le envíes, aparecerá aquí.'
+              }
+            />
           )}
         </div>
       </section>

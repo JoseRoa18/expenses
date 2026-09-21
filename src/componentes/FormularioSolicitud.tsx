@@ -3,6 +3,8 @@
 import { useRef, useState, useTransition } from 'react'
 import { crearSolicitud } from '@/app/solicitudes/acciones'
 import { ERROR_CONEXION } from '@/lib/errores'
+import { Boton } from '@/componentes/Boton'
+import { Campo, CLASE_ENTRADA } from '@/componentes/Campo'
 
 /**
  * El formulario de "Pedir algo" necesita ser un componente de cliente (y no
@@ -42,39 +44,44 @@ export function FormularioSolicitud() {
   }
 
   return (
-    <form ref={formRef} action={enviar} className="mb-6 rounded-2xl bg-white p-4 shadow-sm">
-      <h2 className="mb-3 font-medium">Pedir algo</h2>
-      <input
-        name="titulo"
-        required
-        placeholder="¿Qué necesitas?"
-        className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-3"
-      />
-      <input
-        name="cantidad"
-        placeholder="Cantidad (ej: 2 cajas)"
-        className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-3"
-      />
-      <textarea
-        name="notas"
-        rows={2}
-        placeholder="Notas (opcional)"
-        className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-3"
-      />
-      <label className="mb-3 flex items-center gap-2 text-sm">
-        <input type="checkbox" name="urgencia" value="urgente" className="h-5 w-5" />
+    <form
+      ref={formRef}
+      action={enviar}
+      className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5"
+    >
+      <h2 className="mb-3 font-semibold text-slate-900">Pedir algo</h2>
+
+      <Campo etiqueta="¿Qué necesitas?" className="mb-3">
+        <input name="titulo" required placeholder="Harina de maíz" className={CLASE_ENTRADA} />
+      </Campo>
+
+      <Campo etiqueta="Cantidad" className="mb-3">
+        <input name="cantidad" placeholder="2 cajas" className={CLASE_ENTRADA} />
+      </Campo>
+
+      <Campo etiqueta="Notas" className="mb-3">
+        <textarea name="notas" rows={2} placeholder="Opcional" className={CLASE_ENTRADA} />
+      </Campo>
+
+      <label className="mb-4 flex min-h-11 items-center gap-3 text-sm text-slate-800">
+        <input
+          type="checkbox"
+          name="urgencia"
+          value="urgente"
+          className="h-5 w-5 rounded border-slate-300 accent-slate-900"
+        />
         Es urgente
       </label>
 
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="mb-2 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
 
-      <button
-        type="submit"
-        disabled={pendiente}
-        className="h-12 w-full rounded-xl bg-slate-900 font-medium text-white disabled:opacity-50"
-      >
+      <Boton type="submit" disabled={pendiente} className="w-full">
         {pendiente ? 'Guardando...' : 'Pedir'}
-      </button>
+      </Boton>
     </form>
   )
 }

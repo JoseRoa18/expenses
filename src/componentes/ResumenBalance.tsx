@@ -11,20 +11,20 @@ const FONDOS: Record<EstadoBalance, string> = {
 
 export function ResumenBalance({ balance }: { balance: Balance }) {
   return (
-    <section className={`rounded-2xl ${FONDOS[balance.estado]} p-5 text-white`}>
+    <section className={`rounded-2xl ${FONDOS[balance.estado]} p-5 text-white shadow-sm`}>
       <p className="text-sm opacity-80">{TITULOS_BALANCE[balance.estado]}</p>
-      <p className="mt-1 text-4xl font-semibold tracking-tight">
+      <p className="cifras mt-1 text-4xl font-semibold tracking-tight">
         {formatearUsd(balance.monto)}
       </p>
 
       <dl className="mt-4 flex justify-between border-t border-white/20 pt-3 text-sm">
         <div>
           <dt className="opacity-80">Recibido</dt>
-          <dd className="font-medium">{formatearUsd(balance.totalAportes)}</dd>
+          <dd className="cifras font-medium">{formatearUsd(balance.totalAportes)}</dd>
         </div>
         <div className="text-right">
           <dt className="opacity-80">Gastado</dt>
-          <dd className="font-medium">{formatearUsd(balance.totalGastos)}</dd>
+          <dd className="cifras font-medium">{formatearUsd(balance.totalGastos)}</dd>
         </div>
       </dl>
     </section>

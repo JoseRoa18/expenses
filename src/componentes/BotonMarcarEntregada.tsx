@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { marcarEntregada } from '@/app/compras/acciones'
 import { ERROR_CONEXION } from '@/lib/errores'
+import { Boton } from '@/componentes/Boton'
 
 /**
  * Antes esto era un <form action> de servidor inline en compras/page.tsx que
@@ -35,14 +36,15 @@ export function BotonMarcarEntregada({ compraId }: { compraId: string }) {
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <button
+      <Boton
         type="button"
+        variante="texto"
         disabled={pendiente}
         onClick={marcar}
-        className="flex h-11 items-center px-2 font-medium text-emerald-700 underline disabled:opacity-50"
+        className="font-medium text-emerald-700 active:text-emerald-900"
       >
         {pendiente ? 'Marcando...' : 'Marcar entregada'}
-      </button>
+      </Boton>
       {error && <p className="max-w-40 text-right text-xs text-red-600">{error}</p>}
     </div>
   )

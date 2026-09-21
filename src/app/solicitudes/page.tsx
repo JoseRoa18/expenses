@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation'
 import { crearClienteServidor, obtenerPerfilObligatorio } from '@/lib/supabase/servidor'
 import { TarjetaSolicitud } from '@/componentes/TarjetaSolicitud'
 import { FormularioSolicitud } from '@/componentes/FormularioSolicitud'
-import { BotonSalir } from '@/componentes/BotonSalir'
+import { Encabezado } from '@/componentes/Encabezado'
+import { Vacio } from '@/componentes/Vacio'
 import type { Solicitud, Perfil } from '@/lib/tipos'
 
 export const dynamic = 'force-dynamic'
@@ -39,12 +40,15 @@ export default async function Solicitudes() {
   const nombrePorId = new Map((perfiles as Perfil[] ?? []).map((p) => [p.id, p.nombre]))
   const puedePedir = perfil.rol === 'solicitante' || perfil.rol === 'financista'
 
+  // Alix no tiene barra de navegación (es su única pantalla), así que
+  // tampoco necesita el hueco que esa barra deja debajo.
   return (
-    <main className="mx-auto max-w-md px-4 py-6 pb-24">
-      <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Solicitudes</h1>
-        <BotonSalir nombre={perfil.nombre} />
-      </header>
+    <main
+      className={`mx-auto max-w-md px-4 py-6 ${
+        perfil.rol === 'solicitante' ? 'pb-10' : 'con-barra'
+      }`}
+    >
+      <Encabezado titulo="Solicitudes" nombre={perfil.nombre} />
 
       {puedePedir && <FormularioSolicitud />}
 
@@ -66,7 +70,14 @@ export default async function Solicitudes() {
           />
         ))}
         {listaSolicitudes !== null && listaSolicitudes.length === 0 && (
-          <p className="py-12 text-center text-slate-400">Todavía no hay solicitudes.</p>
+          <Vacio
+            titulo="Todavía no hay solicitudes"
+            ayuda={
+              puedePedir
+                ? 'Escribe arriba lo que haga falta y toca Pedir.'
+                : 'Cuando alguien pida algo, aparecerá aquí.'
+            }
+          />
         )}
       </div>
     </main>

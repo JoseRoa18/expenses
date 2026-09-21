@@ -5,9 +5,49 @@
  * blancas, texto en tonos slate (ver src/app/layout.tsx). No hay una versión
  * oscura decidida, así que no seguimos el sistema operativo del dispositivo:
  * color-scheme: light evita que el navegador oscurezca controles nativos
- * (inputs de fecha y número en las Tareas 8 y 10) cuando el sistema está en
- * modo oscuro.
+ * (inputs de fecha y número) cuando el sistema está en modo oscuro.
  */
 :root {
   color-scheme: light;
+}
+
+/*
+ * La fuente la carga next/font en layout.tsx y la deja en esta variable.
+ * Aquí se convierte en la fuente por defecto de todo Tailwind.
+ */
+@theme {
+  --font-sans: var(--fuente-texto), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Cifras de ancho fijo para todo lo que sea dinero. Sin esto, cada fila de
+ * la lista de gastos alinea sus montos en un sitio distinto -- el "1" ocupa
+ * menos que el "8" -- y una columna de números deja de leerse como columna.
+ */
+.cifras {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * La app se usa con una mano, caminando. Las transiciones son de color y
+ * duran poco, pero quien pide menos movimiento en su teléfono lo pide para
+ * todo, y esto lo respeta sin tener que recordarlo en cada componente.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * Relleno inferior de las pantallas que llevan barra de navegación: su alto
+ * más la franja del gesto de inicio del teléfono. Sin lo segundo, la última
+ * fila de la lista queda debajo de la barra en un iPhone.
+ */
+.con-barra {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 }

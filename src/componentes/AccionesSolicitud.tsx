@@ -5,6 +5,8 @@ import { FormularioCompra } from '@/componentes/FormularioCompra'
 import { rechazarSolicitud } from '@/app/compras/acciones'
 import { puedeComprar, puedeRechazar } from '@/lib/solicitudes'
 import { ERROR_CONEXION } from '@/lib/errores'
+import { Boton } from '@/componentes/Boton'
+import { CLASE_ENTRADA } from '@/componentes/Campo'
 import type { Solicitud } from '@/lib/tipos'
 
 export function AccionesSolicitud({ solicitud }: { solicitud: Solicitud }) {
@@ -31,36 +33,31 @@ export function AccionesSolicitud({ solicitud }: { solicitud: Solicitud }) {
     <div className="mt-3 border-t border-slate-100 pt-3">
       {abierto === 'ninguno' && (
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setAbierto('comprar')}
-            className="h-11 flex-1 rounded-xl bg-slate-900 text-sm font-medium text-white"
-          >
+          <Boton type="button" onClick={() => setAbierto('comprar')} className="flex-1">
             Comprar
-          </button>
-          <button
+          </Boton>
+          <Boton
             type="button"
+            variante="secundario"
             onClick={() => setAbierto('rechazar')}
-            className="h-11 flex-1 rounded-xl bg-slate-100 text-sm font-medium text-slate-700"
+            className="flex-1"
           >
             No se puede
-          </button>
+          </Boton>
         </div>
       )}
 
       {abierto === 'comprar' && (
         <div>
-          <FormularioCompra
-            solicitudId={solicitud.id}
-            descripcionInicial={solicitud.titulo}
-          />
-          <button
+          <FormularioCompra solicitudId={solicitud.id} descripcionInicial={solicitud.titulo} />
+          <Boton
             type="button"
+            variante="texto"
             onClick={() => setAbierto('ninguno')}
-            className="mt-2 flex h-11 w-full items-center justify-center text-sm text-slate-500 underline"
+            className="mt-2 w-full"
           >
             Cerrar
-          </button>
+          </Boton>
         </div>
       )}
 
@@ -70,26 +67,34 @@ export function AccionesSolicitud({ solicitud }: { solicitud: Solicitud }) {
             rows={2}
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            placeholder="¿Por qué no se puede? (Alix verá este mensaje)"
-            className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm"
+            placeholder="¿Por qué no se puede? Alix verá este mensaje."
+            className={`${CLASE_ENTRADA} mb-2`}
           />
-          {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+          {error && (
+            <p className="mb-2 text-sm text-red-600" role="alert">
+              {error}
+            </p>
+          )}
           <div className="flex gap-2">
-            <button
+            <Boton
               type="button"
               disabled={pendiente}
               onClick={rechazar}
-              className="h-11 flex-1 rounded-xl bg-red-600 text-sm font-medium text-white disabled:opacity-50"
+              // El único botón rojo de la app. Rechazar es lo que le llega a
+              // Alix como un no, y conviene que no se toque por error al
+              // lado de "Volver".
+              className="flex-1 bg-red-600 active:bg-red-700"
             >
-              Rechazar
-            </button>
-            <button
+              {pendiente ? 'Rechazando...' : 'Rechazar'}
+            </Boton>
+            <Boton
               type="button"
+              variante="secundario"
               onClick={() => setAbierto('ninguno')}
-              className="h-11 flex-1 rounded-xl bg-slate-100 text-sm font-medium text-slate-700"
+              className="flex-1"
             >
               Volver
-            </button>
+            </Boton>
           </div>
         </div>
       )}
