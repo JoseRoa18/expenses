@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { formatearUsd, formatearBs, formatearFecha, formatearPeso, TITULOS_BALANCE } from '@/lib/formato'
+import {
+  formatearUsd,
+  formatearBs,
+  formatearFecha,
+  formatearPeso,
+  tituloBalance,
+} from '@/lib/formato'
 import { calcularBalance } from '@/lib/balance'
 
 describe('formatearUsd', () => {
@@ -30,15 +36,21 @@ describe('formatearFecha', () => {
 
 describe('TITULOS_BALANCE', () => {
   it('cuando sobra dinero, dice que está disponible', () => {
-    expect(TITULOS_BALANCE[calcularBalance([500], [342.5]).estado]).toBe('Disponible')
+    expect(tituloBalance(calcularBalance([500], [342.5]).estado, 'Alix')).toBe('Disponible')
   })
 
-  it('cuando Jose puso de lo suyo, lo dice a su favor', () => {
-    expect(TITULOS_BALANCE[calcularBalance([500], [642.5]).estado]).toBe('A favor de Jose')
+  it('cuando la persona puso de lo suyo, lo dice con su nombre', () => {
+    // Antes este rótulo decía "A favor de Jose" siempre, porque solo existía
+    // su bolsa. Ahora hay una por persona y el nombre no se puede fijar.
+    expect(tituloBalance(calcularBalance([500], [642.5]).estado, 'Alix')).toBe('A favor de Alix')
+  })
+
+  it('el mismo estado con otra persona dice el otro nombre', () => {
+    expect(tituloBalance(calcularBalance([500], [642.5]).estado, 'Jose')).toBe('A favor de Jose')
   })
 
   it('cuando cuadra, dice que está al día', () => {
-    expect(TITULOS_BALANCE[calcularBalance([100], [100]).estado]).toBe('Al día')
+    expect(tituloBalance(calcularBalance([100], [100]).estado, 'Alix')).toBe('Al día')
   })
 })
 

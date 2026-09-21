@@ -40,14 +40,8 @@ export default async function Solicitudes() {
   const nombrePorId = new Map((perfiles as Perfil[] ?? []).map((p) => [p.id, p.nombre]))
   const puedePedir = perfil.rol === 'solicitante' || perfil.rol === 'financista'
 
-  // Alix no tiene barra de navegación (es su única pantalla), así que
-  // tampoco necesita el hueco que esa barra deja debajo.
   return (
-    <main
-      className={`mx-auto max-w-md px-4 py-6 ${
-        perfil.rol === 'solicitante' ? 'pb-10' : 'con-barra'
-      }`}
-    >
+    <main className="con-barra mx-auto max-w-md px-4 py-6">
       <Encabezado titulo="Solicitudes" nombre={perfil.nombre} />
 
       {puedePedir && <FormularioSolicitud />}

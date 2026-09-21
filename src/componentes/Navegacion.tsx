@@ -3,27 +3,24 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { IconoBalance, IconoGastos, IconoSolicitudes } from '@/componentes/Iconos'
-import type { Rol } from '@/lib/tipos'
 
-type Enlace = { href: string; texto: string; Icono: (p: { className?: string }) => React.ReactElement }
+/**
+ * Las tres pantallas son las mismas para todos.
+ *
+ * Antes esta barra dependía del rol -- Alix tenía una sola pantalla y por
+ * eso no se le mostraba nada -- pero desde que cada persona tiene su propia
+ * bolsa, los tres tienen balance, solicitudes y gastos. Lo que cambia es
+ * *cuánto* se ve dentro de cada pantalla, y eso lo decide la base de datos,
+ * no esta barra.
+ */
+const ENLACES = [
+  { href: '/dinero', texto: 'Balance', Icono: IconoBalance },
+  { href: '/solicitudes', texto: 'Solicitudes', Icono: IconoSolicitudes },
+  { href: '/compras', texto: 'Gastos', Icono: IconoGastos },
+]
 
-const BALANCE: Enlace = { href: '/dinero', texto: 'Balance', Icono: IconoBalance }
-const SOLICITUDES: Enlace = { href: '/solicitudes', texto: 'Solicitudes', Icono: IconoSolicitudes }
-const GASTOS: Enlace = { href: '/compras', texto: 'Gastos', Icono: IconoGastos }
-
-const ENLACES: Record<Rol, Enlace[]> = {
-  solicitante: [SOLICITUDES],
-  comprador: [BALANCE, SOLICITUDES, GASTOS],
-  financista: [BALANCE, SOLICITUDES, GASTOS],
-}
-
-export function Navegacion({ rol }: { rol: Rol }) {
+export function Navegacion() {
   const ruta = usePathname()
-  const enlaces = ENLACES[rol]
-
-  // Alix (solicitante) tiene una sola pantalla: una barra de una pestaña no
-  // sirve de nada y solo tapa espacio, así que no se muestra.
-  if (enlaces.length < 2) return null
 
   return (
     <nav
@@ -32,7 +29,7 @@ export function Navegacion({ rol }: { rol: Rol }) {
       className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-sm"
     >
       <div className="mx-auto flex max-w-md">
-        {enlaces.map(({ href, texto, Icono }) => {
+        {ENLACES.map(({ href, texto, Icono }) => {
           const activo = ruta === href
           return (
             <Link

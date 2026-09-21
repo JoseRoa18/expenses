@@ -8,20 +8,31 @@ import { Encabezado } from '@/componentes/Encabezado'
 import { Vacio } from '@/componentes/Vacio'
 import { formatearUsd, formatearBs, formatearFecha } from '@/lib/formato'
 import { tasaImplicita } from '@/lib/balance'
-import type { Compra } from '@/lib/tipos'
+import type { Compra, Perfil } from '@/lib/tipos'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Compras() {
   const perfil = await obtenerPerfilObligatorio()
   if (!perfil) redirect('/entrar')
-  if (perfil.rol === 'solicitante') redirect('/solicitudes')
+
+  // Jose y Yenny ven los gastos de todos; los demás, los suyos. Quien filtra
+  // es la base de datos (política "leer compras"), no esta consulta: esto
+  // solo decide si la pantalla escribe de quién es cada gasto.
+  const veTodo = perfil.rol === 'comprador' || perfil.rol === 'financista'
 
   const supabase = await crearClienteServidor()
-  const { data, error: errorCompras } = await supabase
-    .from('compras')
-    .select('id, solicitud_id, descripcion, monto_bs, monto_usd, notas, fecha_compra, fecha_entrega')
-    .order('fecha_compra', { ascending: false })
+  const [{ data, error: errorCompras }, { data: perfiles }] = await Promise.all([
+    supabase
+      .from('compras')
+      .select(
+        'id, solicitud_id, registrada_por, descripcion, monto_bs, monto_usd, notas, fecha_compra, fecha_entrega',
+      )
+      .order('fecha_compra', { ascending: false }),
+    supabase.from('profiles').select('id, nombre, rol'),
+  ])
+
+  const nombrePorId = new Map(((perfiles as Perfil[]) ?? []).map((p) => [p.id, p.nombre]))
 
   // Igual que en /dinero (commit edbb1c4): si la consulta falla, no se debe
   // mostrar "Todavía no hay gastos" -- una lista vacía real y un fallo de
@@ -40,12 +51,12 @@ export default async function Compras() {
     <main className="con-barra mx-auto max-w-md px-4 py-6">
       <Encabezado titulo="Gastos" nombre={perfil.nombre} />
 
-      {perfil.rol === 'comprador' && (
-        <section className="mb-6">
-          <h2 className="mb-2 font-semibold text-slate-900">Registrar gasto suelto</h2>
-          <FormularioCompra />
-        </section>
-      )}
+      <section className="mb-6">
+        <h2 className="mb-2 font-semibold text-slate-900">
+          {veTodo ? 'Registrar gasto suelto' : 'Registrar un gasto tuyo'}
+        </h2>
+        <FormularioCompra />
+      </section>
 
       <div className="flex flex-col gap-3">
         {compras === null && (
@@ -69,6 +80,9 @@ export default async function Compras() {
               </div>
 
               <p className="cifras mt-1 text-sm text-slate-600">
+                {/* De quién es solo se dice cuando hay gastos de varias
+                    personas a la vista: para Alix, todos son suyos. */}
+                {veTodo && `${nombrePorId.get(compra.registrada_por) ?? '—'} · `}
                 {formatearBs(compra.monto_bs)}
                 {tasa !== null && ` · tasa ${formatearBs(tasa)}/$`}
               </p>
@@ -97,9 +111,9 @@ export default async function Compras() {
           <Vacio
             titulo="Todavía no hay gastos"
             ayuda={
-              perfil.rol === 'comprador'
-                ? 'Registra arriba lo que compres y sube su factura.'
-                : 'Cuando Jose registre una compra, la verás aquí con su factura.'
+              perfil.rol === 'financista'
+                ? 'Cuando alguien registre una compra, la verás aquí con su factura.'
+                : 'Registra arriba lo que compres y sube su factura.'
             }
           />
         )}

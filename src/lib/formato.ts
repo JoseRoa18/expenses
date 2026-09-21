@@ -1,13 +1,18 @@
 import type { EstadoBalance } from '@/lib/balance'
 
 /**
- * El nombre de cada situación del balance. Vive aquí y solo aquí: la pantalla
- * lo lee de esta tabla en vez de repetir los textos.
+ * El rótulo de una bolsa. Vive aquí y solo aquí: la pantalla lo pide en vez
+ * de repetir los textos.
+ *
+ * Lleva el nombre de la persona porque hay una bolsa por cada una, y el
+ * único caso en que el rótulo dice de quién es -- haber puesto de lo suyo --
+ * sería falso escrito en fijo. Antes era una tabla con "A favor de Jose"
+ * dentro, de cuando solo existía su bolsa.
  */
-export const TITULOS_BALANCE: Record<EstadoBalance, string> = {
-  disponible: 'Disponible',
-  a_favor_de_jose: 'A favor de Jose',
-  al_dia: 'Al día',
+export function tituloBalance(estado: EstadoBalance, nombre: string): string {
+  if (estado === 'disponible') return 'Disponible'
+  if (estado === 'a_favor') return `A favor de ${nombre}`
+  return 'Al día'
 }
 
 const numero = new Intl.NumberFormat('es-VE', {

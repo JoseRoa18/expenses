@@ -21,21 +21,54 @@ se compró, cuánto costó, ni cuánto dinero queda. Esta app es ese registro.
 | Editar / cancelar solicitud propia (si no está comprada) | ✅ | ❌ | ✅ |
 | Ver solicitudes y su estado | ✅ | ✅ | ✅ |
 | Rechazar solicitud (con motivo) | ❌ | ✅ | ❌ |
-| Registrar compra | ❌ | ✅ | ❌ |
-| Subir factura | ❌ | ✅ | ❌ |
+| Registrar un gasto propio | ✅ | ✅ | ✅ |
+| Subir factura de un gasto propio | ✅ | ✅ | ✅ |
+| Comprar lo que otro pidió | ❌ | ✅ | ❌ |
 | Marcar como entregada | ❌ | ✅ | ❌ |
-| Registrar dinero recibido | ❌ | ✅ | ❌ |
-| Ver montos, facturas y balance | ❌ | ✅ | ✅ |
+| Registrar dinero recibido, a su nombre | ✅ | ✅ | ✅ |
+| Registrar dinero a nombre de otro | ❌ | ❌ | ❌ |
+| Ver su propia bolsa (ingresos, gastos, facturas, balance) | ✅ | ✅ | ✅ |
+| Ver la bolsa de los demás | ❌ | ✅ | ✅ |
 
-### Decisiones de permisos (confirmar)
+### Cada persona tiene su propia bolsa
 
-1. **Alix no ve ninguna información económica.** Ni montos, ni facturas, ni las
-   notas que escriba Jose en la compra. Solo ve sus solicitudes y el estado en
-   que están. Si Jose rechaza algo, Alix sí ve el motivo del rechazo.
-2. **Yenny = Alix + auditoría total.** Crea y edita solicitudes igual que Alix, y
-   ve absolutamente todo lo económico. No registra compras ni dinero.
-3. **Alix y Yenny ven las solicitudes de ambas**, no solo las propias. Editar y
-   cancelar queda limitado a las propias.
+Esto **sustituye** a la regla anterior, que decía que Alix no podía ver nada
+económico. Alix también recibe dinero y también compra, así que tiene su
+propia bolsa. Lo que sigue siendo cierto es que **no ve la de nadie más**.
+
+```
+bolsa de X = SUMA(ingresos de X) − SUMA(gastos de X)
+```
+
+**El dueño de un movimiento es quien lo registró.** No hay una columna de
+"dueño" aparte de `registrada_por`, y no hace falta: nadie puede registrar
+dinero ni gastos a nombre de otro, así que las dos cosas son siempre la
+misma. El día que haga falta que Yenny registre a nombre de alguien, ese día
+aparece la columna; hoy sería una segunda fuente de verdad que mantener
+sincronizada sin motivo.
+
+1. **Alix ve lo suyo y solo lo suyo.** Sus ingresos, sus gastos, sus facturas
+   y su balance. De Jose y Yenny no ve ni montos ni facturas ni balance.
+2. **Jose y Yenny ven las tres bolsas**, por separado y en total. Yenny
+   audita; Jose necesita el total porque es quien compra para la casa.
+3. **Lo que Jose compra sale de la bolsa de Jose**, también cuando lo compró
+   porque Alix lo pidió. La bolsa de Alix solo baja con lo que ella misma
+   registra. Comprar por encargo no mueve el dinero de quien encargó.
+4. **Alix y Yenny ven las solicitudes de ambas**, no solo las propias. Editar
+   y cancelar queda limitado a las propias.
+
+### Qué se debilitó, dicho en voz alta
+
+La garantía anterior era la más fuerte que puede dar este diseño: *Alix no
+puede leer una sola cifra, ni aunque consulte la base directamente*. La de
+ahora es *Alix solo puede leer lo suyo*. Sigue impuesta por la base de datos
+y no por la app -- que es lo que importa -- pero es una superficie más grande:
+donde antes la respuesta era "ninguna fila", ahora es "las filas que cumplan
+esta condición", y esa condición hay que escribirla bien en cada tabla.
+
+El bucket de facturas pasa de aceptar a una sola persona a aceptar a las
+tres. Lo que decide quién ve qué es la lectura, atada a de quién es la
+compra, no la escritura.
 
 ## Flujo de una solicitud
 
@@ -151,34 +184,48 @@ enlaces firmados de corta duración que la app genera para Jose y Yenny.
 
 ### `aportes`
 
-Dinero que Jose recibe de Yenny.
+Dinero que alguien recibe. Cada fila pertenece a la bolsa de quien la
+registró.
 
 | campo | tipo | notas |
 |---|---|---|
 | `id` | uuid | |
-| `registrado_por` | uuid → profiles | siempre Jose |
+| `registrada_por` | uuid → profiles | quien recibió el dinero; es el dueño |
 | `monto_usd` | numeric(12,2) | |
 | `fecha` | date | |
 | `metodo` | text | Zelle, efectivo, etc. |
 | `notas` | text | opcional |
 | `created_at` | timestamptz | |
 
-Jose registra el aporte cuando el dinero ya está en su mano. No hay estado "en
-tránsito": lo que está en la tabla es dinero real recibido.
+Se registra cuando el dinero ya está en la mano. No hay estado "en tránsito":
+lo que está en la tabla es dinero real recibido.
+
+Todo lo registrado antes de este cambio lo registró Jose, así que al pasar a
+bolsas por persona queda entero en la bolsa de Jose. Es lo correcto -- era
+dinero que Yenny le dio a él -- y no hace falta migrar ninguna fila.
 
 ## Cálculo del balance
 
-Moneda ancla: **dólares**.
+Moneda ancla: **dólares**. Hay un balance por persona, no uno solo.
 
 ```
-balance = SUMA(aportes.monto_usd) − SUMA(compras.monto_usd)
+balance de X = SUMA(aportes de X) − SUMA(compras de X)
 ```
 
 | resultado | significado | cómo se muestra |
 |---|---|---|
-| mayor que 0 | sobra dinero del que Yenny mandó | "Disponible: $157,50" |
-| menor que 0 | Jose puso de su bolsillo | "A favor de Jose: $142,50" |
+| mayor que 0 | le queda dinero de lo que recibió | "Disponible: $157,50" |
+| menor que 0 | puso de su bolsillo | "A favor de Alix: $142,50" |
 | igual a 0 | cuadrado | "Al día" |
+
+El rótulo del medio se compone con el nombre de quien sea la bolsa. Antes
+estaba escrito "A favor de Jose" de forma fija, porque solo existía su bolsa.
+
+Quién ve cuántos balances lo decide la base de datos, no la pantalla: la
+función devuelve una fila por persona y filtra por lo mismo que filtran las
+tablas. A Alix le devuelve exactamente una fila, la suya; a Jose y a Yenny,
+las tres. Una pantalla con un fallo no puede enseñar un balance ajeno porque
+nunca llega a tenerlo.
 
 Los bolívares nunca entran en el balance. Se guardan para poder cuadrar contra
 las facturas físicas.
@@ -190,9 +237,12 @@ Móvil primero, en español.
 **Entrar** — tres botones grandes con los nombres. Tocas el tuyo, tecleas 6
 dígitos, entras. La sesión queda recordada en el dispositivo.
 
-**Alix** — una sola lista: todas las solicitudes (las suyas y las de Yenny) con
-el estado bien visible; las suyas se pueden editar, las de Yenny no. Botón grande
-para pedir algo nuevo. Cero información de dinero en toda la pantalla.
+**Alix** — tres pestañas, como los demás. *Solicitudes*: todas (las suyas y
+las de Yenny) con el estado bien visible; las suyas se pueden editar, las de
+Yenny no. *Balance*: su bolsa, su formulario para registrar dinero recibido y
+su historial. *Gastos*: los suyos, con el mismo formulario que usa Jose --
+bolívares y dólares, factura opcional y avisada. De Jose y de Yenny no ve una
+sola cifra en ninguna de las tres.
 
 **Jose** — arriba el balance y el número de solicitudes pendientes. Toca una
 solicitud y desde ahí registra la compra (montos, notas, fotos) y luego la marca
@@ -206,8 +256,8 @@ solicitudes. Puede crear solicitudes igual que Alix.
 - **Next.js (App Router) + TypeScript + Tailwind**, desplegado en Vercel.
 - **Supabase** para base de datos, cuentas y almacenamiento de facturas.
 - **Los permisos viven en la base de datos** (Row Level Security), no en la app.
-  Alix no puede leer montos ni aunque consulte la base directamente. Para que se
-  filtrara información habría que equivocarse en dos capas a la vez.
+  Alix no puede leer el dinero de otro ni aunque consulte la base directamente.
+  Para que se filtrara información habría que equivocarse en dos capas a la vez.
 ### Cada quien elige su propio PIN
 
 Nadie recibe un PIN asignado. La primera vez que una persona toca su nombre,
@@ -253,12 +303,20 @@ base de datos aunque la sesión se comprometa.
 
 Dos cosas importan de verdad y llevan pruebas automáticas:
 
-1. **El balance.** Que sume y reste bien en los tres casos: a favor de Jose,
-   disponible, y cero. Incluye redondeo a dos decimales.
-2. **Los permisos.** Una prueba que, autenticada como Alix, intenta leer
-   `compras`, `aportes`, `facturas` y el balance — y verifica que la base los
-   niega. Es la prueba más importante del proyecto. También verifica que Yenny
-   *no* puede insertar en `compras` ni `aportes`.
+1. **El balance.** Que sume y reste bien en los tres casos: a favor de quien
+   sea la bolsa, disponible, y cero. Incluye redondeo a dos decimales.
+2. **Los permisos.** Sigue siendo la prueba más importante del proyecto, pero
+   cambia de forma: ya no comprueba que Alix no vea nada, sino que **solo vea
+   lo suyo**. Autenticada como Alix, lee `compras`, `aportes`, `facturas` y el
+   balance, y se verifica que le llegan sus filas y ninguna de Jose ni de
+   Yenny. Y al revés: que un intento de registrar dinero o un gasto a nombre
+   de otro lo niega la base.
+
+   Ojo con la trampa de esta prueba: "Alix no ve nada" fallaba sola si alguien
+   rompía la política. "Alix ve lo suyo" puede pasar con una política que deje
+   ver de más, si la prueba solo mira que estén sus filas. Por eso comprueba
+   las dos mitades -- lo que tiene que estar y lo que no puede estar -- sobre
+   datos sembrados de las tres personas en la misma corrida.
 
 Además, pruebas de las transiciones de estado de una solicitud (que no se pueda
 cancelar una ya comprada, que rechazar exija motivo).

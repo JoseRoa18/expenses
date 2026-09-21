@@ -2,11 +2,13 @@
 
 Control de gastos compartidos entre tres personas.
 
-- **Alix** pide lo que hace falta.
-- **Jose** compra, sube la factura y entrega.
+- **Alix** pide lo que hace falta, y maneja su propio dinero.
+- **Jose** compra lo que se pide, sube la factura y entrega.
 - **Yenny** pone el dinero y lo audita todo.
 
-Alix no ve montos, facturas ni balance. Eso lo impone la base de datos, no la app.
+Cada persona tiene su propia bolsa: lo que recibe menos lo que gasta. **Alix
+solo ve la suya**; Jose y Yenny ven las tres. Eso lo impone la base de datos,
+no la app.
 
 ## Arrancar en local
 
@@ -37,8 +39,9 @@ npm test
 ```
 
 `tests/permisos.test.ts` habla con el Supabase real (no hay un entorno de
-prueba separado) y comprueba, entre otras cosas, que Alix no puede leer nada
-de dinero. Si esa prueba falla, no se despliega.
+prueba separado) y comprueba, entre otras cosas, que Alix ve su dinero y
+ninguno ajeno -- las dos mitades, sobre datos sembrados de las tres personas
+en la misma corrida. Si esa prueba falla, no se despliega.
 
 ## El PIN
 

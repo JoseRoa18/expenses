@@ -14,7 +14,7 @@ describe('calcularBalance', () => {
   it('cuando Jose gastó más de lo recibido, el saldo queda a su favor', () => {
     const b = calcularBalance([500], [642.5])
     expect(b.neto).toBe(-142.5)
-    expect(b.estado).toBe('a_favor_de_jose')
+    expect(b.estado).toBe('a_favor')
     expect(b.monto).toBe(142.5)
   })
 

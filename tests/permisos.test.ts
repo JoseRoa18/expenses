@@ -67,18 +67,39 @@ let idPerfilAlix: string
 let idPerfilJose: string
 let idPerfilYenny: string
 
-// Balance justo antes de sembrar dinero, para que la prueba compruebe la
-// DIFERENCIA que produce la semilla, no un total absoluto. No hay entorno
-// de prueba separado (ver comentario de `admin` más abajo): esta suite
-// corre contra el mismo libro de cuentas real que van a usar Jose y Yenny.
+// Las filas propias de Alix, para poder comprobar que las ve -- y que las de
+// Jose, sembradas al lado, no.
+let idAporteAlix: string
+let idCompraAlix: string
+let idFacturaAlix: string
+let idCompraJose: string
+let idAporteJose: string
+let idFacturaJose: string
+
+// El balance de cada persona justo antes de sembrar, para que la prueba
+// compruebe la DIFERENCIA que produce la semilla y no un total absoluto. No
+// hay entorno de prueba separado (ver comentario de `admin` más abajo):
+// esta suite corre contra el mismo libro de cuentas real que usan los tres.
 // Un total absoluto ("total_aportes === 777.77") es correcto solo mientras
-// la base esté vacía de dinero real; en cuanto Jose registre un aporte de
-// verdad, esa aserción falla para siempre, y la tentación de aflojarla
+// la base esté vacía de dinero real; en cuanto alguien registre un aporte
+// de verdad, esa aserción falla para siempre, y la tentación de aflojarla
 // -- a `toBeGreaterThan(0)` o similar -- le quita los dientes a la prueba
 // más valiosa del proyecto. Con la diferencia, la prueba sigue siendo
 // exacta (sigue comprobando el redondeo de `numeric` a centavos exactos)
 // sin importar cuánto dinero real ya exista.
-let balanceAntes: { total_aportes: number; total_gastos: number }
+type TotalesPersona = { total_aportes: number; total_gastos: number }
+const balanceAntes = new Map<string, TotalesPersona>()
+
+async function leerBalances(cliente: SupabaseClient) {
+  const { data, error } = await cliente.rpc('obtener_balances')
+  if (error) throw error
+  return data as {
+    persona_id: string
+    nombre: string
+    total_aportes: number
+    total_gastos: number
+  }[]
+}
 
 beforeAll(async () => {
   alix = await entrarComo('alix@expenses.local')
@@ -92,20 +113,21 @@ beforeAll(async () => {
   idPerfilYenny = (await yenny.from('profiles').select('id').eq('nombre', 'Yenny').single())
     .data!.id
 
-  const { data: balanceInicial, error: errBalanceInicial } = await yenny.rpc('obtener_balance')
-  if (errBalanceInicial) throw errBalanceInicial
-  balanceAntes = {
-    total_aportes: Number(balanceInicial![0].total_aportes),
-    total_gastos: Number(balanceInicial![0].total_gastos),
+  // Yenny ve las tres bolsas, así que de aquí sale el punto de partida de
+  // todas.
+  for (const fila of await leerBalances(yenny)) {
+    balanceAntes.set(fila.nombre, {
+      total_aportes: Number(fila.total_aportes),
+      total_gastos: Number(fila.total_gastos),
+    })
   }
 
   // --- Semilla de dinero real -------------------------------------------
-  // Sin esto, "Alix no lee compras/aportes/facturas" comprueba una tabla
-  // vacía: esa comprobación pasa igual si la RLS está activa o si está
-  // completamente apagada, así que no protege nada. Con filas reales de
-  // dinero, la aserción `toEqual([])` sí depende de que la política
-  // funcione: si la RLS de la tabla se desactivara, esto devolvería la fila
-  // sembrada y la prueba fallaría, que es justo lo que se necesita.
+  // Se siembra dinero de DOS bolsas: la de Jose y la de Alix. Con una sola
+  // no se puede probar nada: "Alix ve lo suyo" pasaría igual con una
+  // política que deje ver todo. Hacen falta filas ajenas y filas propias en
+  // la misma corrida para poder comprobar las dos mitades de la regla --
+  // lo que tiene que estar y lo que no puede estar.
   const { data: solicitudSemilla, error: errSolicitud } = await alix
     .from('solicitudes')
     .insert({ creada_por: idPerfilAlix, titulo: 'prueba de permisos: semilla de dinero' })
@@ -133,6 +155,7 @@ beforeAll(async () => {
     .single()
   if (errCompra) throw errCompra
   idsCompras.push(compraSemilla!.id)
+  idCompraJose = compraSemilla!.id
 
   const { data: facturaSemilla, error: errFactura } = await jose
     .from('facturas')
@@ -144,6 +167,7 @@ beforeAll(async () => {
     .single()
   if (errFactura) throw errFactura
   idsFacturas.push(facturaSemilla!.id)
+  idFacturaJose = facturaSemilla!.id
 
   const { data: aporteSemilla, error: errAporte } = await jose
     .from('aportes')
@@ -152,6 +176,43 @@ beforeAll(async () => {
     .single()
   if (errAporte) throw errAporte
   idsAportes.push(aporteSemilla!.id)
+  idAporteJose = aporteSemilla!.id
+
+  // --- La bolsa de Alix -------------------------------------------------
+  const { data: aporteAlix, error: errAporteAlix } = await alix
+    .from('aportes')
+    .insert({ registrada_por: idPerfilAlix, monto_usd: 333.33 })
+    .select()
+    .single()
+  if (errAporteAlix) throw errAporteAlix
+  idsAportes.push(aporteAlix!.id)
+  idAporteAlix = aporteAlix!.id
+
+  const { data: compraAlix, error: errCompraAlix } = await alix
+    .from('compras')
+    .insert({
+      registrada_por: idPerfilAlix,
+      descripcion: 'prueba de permisos: gasto de Alix ($111.11)',
+      monto_bs: 4000,
+      monto_usd: 111.11,
+    })
+    .select()
+    .single()
+  if (errCompraAlix) throw errCompraAlix
+  idsCompras.push(compraAlix!.id)
+  idCompraAlix = compraAlix!.id
+
+  const { data: facturaAlix, error: errFacturaAlix } = await alix
+    .from('facturas')
+    .insert({
+      compra_id: compraAlix!.id,
+      storage_path: `${compraAlix!.id}/prueba-permisos-alix.jpg`,
+    })
+    .select()
+    .single()
+  if (errFacturaAlix) throw errFacturaAlix
+  idsFacturas.push(facturaAlix!.id)
+  idFacturaAlix = facturaAlix!.id
 })
 
 afterAll(async () => {
@@ -173,31 +234,74 @@ afterAll(async () => {
   }
 })
 
-describe('Alix no puede ver nada de dinero', () => {
-  it('no lee compras', async () => {
-    const { data } = await alix.from('compras').select('*')
-    expect(data).toEqual([])
+/**
+ * La prueba más importante del proyecto.
+ *
+ * Antes decía "Alix no ve nada de dinero" y se comprobaba con `toEqual([])`,
+ * que falla sola en cuanto una política se rompe. Ahora la regla es "Alix ve
+ * lo suyo", y esa se puede aprobar por accidente: una política que deje ver
+ * de más pasaría igual si solo se comprobara que están sus filas. Por eso
+ * cada prueba de aquí comprueba las dos mitades sobre la misma consulta: que
+ * esté lo propio Y que no esté lo ajeno.
+ */
+describe('Alix ve su bolsa y solo la suya', () => {
+  it('lee su gasto, no el de Jose', async () => {
+    const { data, error } = await alix.from('compras').select('id')
+    expect(error).toBeNull()
+    const ids = (data ?? []).map((c) => c.id)
+    expect(ids).toContain(idCompraAlix)
+    expect(ids).not.toContain(idCompraJose)
   })
 
-  it('no lee aportes', async () => {
-    const { data } = await alix.from('aportes').select('*')
-    expect(data).toEqual([])
+  it('lee su ingreso, no el de Jose', async () => {
+    const { data, error } = await alix.from('aportes').select('id')
+    expect(error).toBeNull()
+    const ids = (data ?? []).map((a) => a.id)
+    expect(ids).toContain(idAporteAlix)
+    expect(ids).not.toContain(idAporteJose)
   })
 
-  it('no lee facturas', async () => {
-    const { data } = await alix.from('facturas').select('*')
-    expect(data).toEqual([])
+  it('lee la factura de su gasto, no la del de Jose', async () => {
+    const { data, error } = await alix.from('facturas').select('id')
+    expect(error).toBeNull()
+    const ids = (data ?? []).map((f) => f.id)
+    expect(ids).toContain(idFacturaAlix)
+    expect(ids).not.toContain(idFacturaJose)
   })
 
-  it('no obtiene el balance', async () => {
-    const { data } = await alix.rpc('obtener_balance')
-    expect(data).toEqual([])
+  it('el balance le devuelve una sola fila, la suya', async () => {
+    const filas = await leerBalances(alix)
+    expect(filas).toHaveLength(1)
+    expect(filas[0].nombre).toBe('Alix')
+    expect(filas[0].persona_id).toBe(idPerfilAlix)
   })
 
-  it('no puede registrar una compra', async () => {
-    const { data: perfil } = await alix.from('profiles').select('id').limit(1).single()
+  it('su balance refleja exactamente lo que ella sembró', async () => {
+    const [fila] = await leerBalances(alix)
+    const antes = balanceAntes.get('Alix')!
+    expect(Number(fila.total_aportes) - antes.total_aportes).toBeCloseTo(333.33, 2)
+    expect(Number(fila.total_gastos) - antes.total_gastos).toBeCloseTo(111.11, 2)
+  })
+
+  it('registra un gasto suyo', async () => {
+    const { data, error } = await alix
+      .from('compras')
+      .insert({
+        registrada_por: idPerfilAlix,
+        descripcion: 'prueba de permisos: gasto propio de Alix',
+        monto_bs: 100,
+        monto_usd: 1,
+      })
+      .select('id')
+      .single()
+    expect(error).toBeNull()
+    idsCompras.push(data!.id)
+  })
+
+  it('no puede registrar un gasto a nombre de Jose', async () => {
+    // Si esto entrara, la bolsa de Jose bajaría sin que él hiciera nada.
     const { error } = await alix.from('compras').insert({
-      registrada_por: perfil!.id,
+      registrada_por: idPerfilJose,
       descripcion: 'intento no autorizado',
       monto_bs: 100,
       monto_usd: 1,
@@ -205,39 +309,56 @@ describe('Alix no puede ver nada de dinero', () => {
     expect(error).not.toBeNull()
   })
 
-  it('no puede registrar un aporte', async () => {
-    const { data: perfil } = await alix.from('profiles').select('id').limit(1).single()
+  it('no puede registrar un ingreso a nombre de Jose', async () => {
     const { error } = await alix.from('aportes').insert({
-      registrada_por: perfil!.id,
+      registrada_por: idPerfilJose,
       monto_usd: 100,
     })
     expect(error).not.toBeNull()
   })
 })
 
-describe('Yenny audita todo pero no registra gastos', () => {
-  it('lee compras', async () => {
-    const { error } = await yenny.from('compras').select('*')
+describe('Yenny audita las tres bolsas', () => {
+  it('lee los gastos de todos', async () => {
+    const { data, error } = await yenny.from('compras').select('id')
     expect(error).toBeNull()
+    const ids = (data ?? []).map((c) => c.id)
+    expect(ids).toContain(idCompraJose)
+    expect(ids).toContain(idCompraAlix)
   })
 
-  it('obtiene el balance, y refleja exactamente la semilla que se sembró', async () => {
-    const { data, error } = await yenny.rpc('obtener_balance')
+  it('lee las facturas de todos', async () => {
+    const { data, error } = await yenny.from('facturas').select('id')
     expect(error).toBeNull()
-    expect(data).toHaveLength(1)
-    expect(data![0]).toHaveProperty('total_aportes')
-    expect(data![0]).toHaveProperty('total_gastos')
+    const ids = (data ?? []).map((f) => f.id)
+    expect(ids).toContain(idFacturaJose)
+    expect(ids).toContain(idFacturaAlix)
+  })
 
-    // La semilla de este archivo mete exactamente un aporte de $777.77 y una
-    // compra de $555.55 -- montos con centavos, elegidos a propósito para que
-    // un `numeric` mal convertido (redondeo, truncamiento, o una suma hecha
-    // como texto) se note. No se compara contra un total absoluto: esta
+  it('el balance le devuelve una fila por persona', async () => {
+    const filas = await leerBalances(yenny)
+    expect(filas.map((f) => f.nombre).sort()).toEqual(['Alix', 'Jose', 'Yenny'])
+  })
+
+  it('la bolsa de Jose refleja exactamente la semilla que se sembró', async () => {
+    const filas = await leerBalances(yenny)
+    const fila = filas.find((f) => f.nombre === 'Jose')!
+    expect(fila).toHaveProperty('total_aportes')
+    expect(fila).toHaveProperty('total_gastos')
+
+    // La semilla mete en la bolsa de Jose exactamente un aporte de $777.77 y
+    // una compra de $555.55 -- montos con centavos, elegidos a propósito para
+    // que un `numeric` mal convertido (redondeo, truncamiento, o una suma
+    // hecha como texto) se note. No se compara contra un total absoluto: esta
     // suite corre contra el libro de cuentas real (no hay entorno de prueba
     // separado), así que en cuanto exista un solo aporte o gasto real, un
     // total absoluto falla para siempre. Se compara contra `balanceAntes`
     // (leído en beforeAll, antes de sembrar), así que la prueba sigue siendo
     // exacta sin importar cuánto dinero real ya haya en la base.
-    const fila = data![0]
+    //
+    // Y sirve para una segunda cosa: si las sumas se escaparan de su bolsa,
+    // el delta de Jose incluiría los $333.33 y los $111.11 que sembró Alix, y
+    // esta prueba fallaría.
 
     // `numeric` de Postgres: PostgREST lo serializa como número JSON (no como
     // string entrecomillado), así que supabase-js ya entrega un `number` de
@@ -247,8 +368,9 @@ describe('Yenny audita todo pero no registra gastos', () => {
     expect(typeof fila.total_aportes).toBe('number')
     expect(typeof fila.total_gastos).toBe('number')
 
-    const deltaAportes = Number(fila.total_aportes) - balanceAntes.total_aportes
-    const deltaGastos = Number(fila.total_gastos) - balanceAntes.total_gastos
+    const antes = balanceAntes.get('Jose')!
+    const deltaAportes = Number(fila.total_aportes) - antes.total_aportes
+    const deltaGastos = Number(fila.total_gastos) - antes.total_gastos
     expect(deltaAportes).toBeCloseTo(777.77, 2)
     expect(deltaGastos).toBeCloseTo(555.55, 2)
 
@@ -260,11 +382,27 @@ describe('Yenny audita todo pero no registra gastos', () => {
     expect(balanceDelta.neto).toBeCloseTo(222.22, 2)
   })
 
-  it('no puede registrar una compra', async () => {
-    const { data: perfil } = await yenny.from('profiles').select('id')
-      .eq('nombre', 'Yenny').single()
+  it('registra un gasto suyo', async () => {
+    // Cambió respecto al diseño anterior: Yenny también tiene su bolsa, así
+    // que registra lo suyo. Lo que sigue sin poder es escribir en la de
+    // otro, que es la prueba de abajo.
+    const { data, error } = await yenny
+      .from('compras')
+      .insert({
+        registrada_por: idPerfilYenny,
+        descripcion: 'prueba de permisos: gasto propio de Yenny',
+        monto_bs: 100,
+        monto_usd: 1,
+      })
+      .select('id')
+      .single()
+    expect(error).toBeNull()
+    idsCompras.push(data!.id)
+  })
+
+  it('no puede registrar un gasto a nombre de Jose', async () => {
     const { error } = await yenny.from('compras').insert({
-      registrada_por: perfil!.id,
+      registrada_por: idPerfilJose,
       descripcion: 'intento no autorizado',
       monto_bs: 100,
       monto_usd: 1,
@@ -272,11 +410,9 @@ describe('Yenny audita todo pero no registra gastos', () => {
     expect(error).not.toBeNull()
   })
 
-  it('no puede registrar un aporte', async () => {
-    const { data: perfil } = await yenny.from('profiles').select('id')
-      .eq('nombre', 'Yenny').single()
+  it('no puede registrar un ingreso a nombre de Alix', async () => {
     const { error } = await yenny.from('aportes').insert({
-      registrada_por: perfil!.id,
+      registrada_por: idPerfilAlix,
       monto_usd: 100,
     })
     expect(error).not.toBeNull()
@@ -297,11 +433,16 @@ describe('Yenny audita todo pero no registra gastos', () => {
   })
 })
 
-describe('Jose registra el dinero', () => {
-  it('obtiene el balance', async () => {
-    const { data, error } = await jose.rpc('obtener_balance')
+describe('Jose ve las tres bolsas', () => {
+  it('el balance le devuelve una fila por persona', async () => {
+    const filas = await leerBalances(jose)
+    expect(filas.map((f) => f.nombre).sort()).toEqual(['Alix', 'Jose', 'Yenny'])
+  })
+
+  it('lee el gasto de Alix', async () => {
+    const { data, error } = await jose.from('compras').select('id')
     expect(error).toBeNull()
-    expect(data).toHaveLength(1)
+    expect((data ?? []).map((c) => c.id)).toContain(idCompraAlix)
   })
 
   it('no puede crear solicitudes', async () => {

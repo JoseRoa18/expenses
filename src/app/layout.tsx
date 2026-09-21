@@ -39,7 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="es" className={fuente.variable}>
       <body className="bg-slate-50 text-slate-900 antialiased">
         {children}
-        {perfil && <Navegacion rol={perfil.rol} />}
+        {perfil && <Navegacion />}
       </body>
     </html>
   )
