@@ -21,20 +21,30 @@ se compró, cuánto costó, ni cuánto dinero queda. Esta app es ese registro.
 | Editar / cancelar solicitud propia (si no está comprada) | ✅ | ❌ | ✅ |
 | Ver solicitudes y su estado | ✅ | ✅ | ✅ |
 | Rechazar solicitud (con motivo) | ❌ | ✅ | ❌ |
-| Registrar un gasto propio | ✅ | ✅ | ✅ |
-| Subir factura de un gasto propio | ✅ | ✅ | ✅ |
+| Registrar un gasto propio | ✅ | ✅ | ❌ |
+| Subir factura de un gasto propio | ✅ | ✅ | ❌ |
 | Comprar lo que otro pidió | ❌ | ✅ | ❌ |
 | Marcar como entregada | ❌ | ✅ | ❌ |
-| Registrar dinero recibido, a su nombre | ✅ | ✅ | ✅ |
+| Registrar dinero recibido, a su nombre | ✅ | ✅ | ❌ |
 | Registrar dinero a nombre de otro | ❌ | ❌ | ❌ |
-| Ver su propia bolsa (ingresos, gastos, facturas, balance) | ✅ | ✅ | ✅ |
-| Ver la bolsa de los demás | ❌ | ✅ | ✅ |
+| Ver su propia bolsa (ingresos, gastos, facturas, balance) | ✅ | ✅ | — |
+| Ver las dos bolsas | ❌ | ✅ | ✅ |
 
-### Cada persona tiene su propia bolsa
+### Dos bolsas: la de Alix y la de Jose
 
 Esto **sustituye** a la regla anterior, que decía que Alix no podía ver nada
 económico. Alix también recibe dinero y también compra, así que tiene su
 propia bolsa. Lo que sigue siendo cierto es que **no ve la de nadie más**.
+
+**Yenny no tiene bolsa.** Ella pone el dinero: no recibe ni gasta, así que no
+hay nada que sumarle ni restarle. Lo ve todo y no registra nada. Quien recibe
+el dinero es quien lo registra -- Alix el suyo, Jose el suyo -- y eso hace que
+el registro siempre lo escriba quien tiene el dinero en la mano.
+
+Que Yenny no tenga bolsa se decide por su rol y no por "no tiene
+movimientos". Si dependiera de los movimientos, le aparecería una bolsa en
+$0,00 y "Al día" -- indistinguible de una bolsa real que cuadra, y una
+invitación a registrar dinero en ella.
 
 ```
 bolsa de X = SUMA(ingresos de X) − SUMA(gastos de X)
@@ -49,7 +59,7 @@ sincronizada sin motivo.
 
 1. **Alix ve lo suyo y solo lo suyo.** Sus ingresos, sus gastos, sus facturas
    y su balance. De Jose y Yenny no ve ni montos ni facturas ni balance.
-2. **Jose y Yenny ven las tres bolsas**, por separado y en total. Yenny
+2. **Jose y Yenny ven las dos bolsas**, por separado y en total. Yenny
    audita; Jose necesita el total porque es quien compra para la casa.
 3. **Lo que Jose compra sale de la bolsa de Jose**, también cuando lo compró
    porque Alix lo pidió. La bolsa de Alix solo baja con lo que ella misma
@@ -212,6 +222,8 @@ Moneda ancla: **dólares**. Hay un balance por persona, no uno solo.
 balance de X = SUMA(aportes de X) − SUMA(compras de X)
 ```
 
+Solo hay balance de quien tiene bolsa: Alix y Jose. Yenny no aparece.
+
 | resultado | significado | cómo se muestra |
 |---|---|---|
 | mayor que 0 | le queda dinero de lo que recibió | "Disponible: $157,50" |
@@ -222,9 +234,9 @@ El rótulo del medio se compone con el nombre de quien sea la bolsa. Antes
 estaba escrito "A favor de Jose" de forma fija, porque solo existía su bolsa.
 
 Quién ve cuántos balances lo decide la base de datos, no la pantalla: la
-función devuelve una fila por persona y filtra por lo mismo que filtran las
+función devuelve una fila por bolsa y filtra por lo mismo que filtran las
 tablas. A Alix le devuelve exactamente una fila, la suya; a Jose y a Yenny,
-las tres. Una pantalla con un fallo no puede enseñar un balance ajeno porque
+las dos. Una pantalla con un fallo no puede enseñar un balance ajeno porque
 nunca llega a tenerlo.
 
 Los bolívares nunca entran en el balance. Se guardan para poder cuadrar contra
@@ -248,8 +260,10 @@ sola cifra en ninguna de las tres.
 solicitud y desde ahí registra la compra (montos, notas, fotos) y luego la marca
 entregada. Dos accesos aparte: registrar gasto suelto, registrar dinero recibido.
 
-**Yenny** — balance primero, luego el historial de gastos con sus facturas, y las
-solicitudes. Puede crear solicitudes igual que Alix.
+**Yenny** — las dos bolsas primero, luego el historial de gastos con sus
+facturas y el del dinero que entregó, y las solicitudes. No tiene balance
+propio ni formularios para registrar dinero: pone y audita. Puede crear
+solicitudes igual que Alix.
 
 ## Decisiones técnicas
 
@@ -308,9 +322,10 @@ Dos cosas importan de verdad y llevan pruebas automáticas:
 2. **Los permisos.** Sigue siendo la prueba más importante del proyecto, pero
    cambia de forma: ya no comprueba que Alix no vea nada, sino que **solo vea
    lo suyo**. Autenticada como Alix, lee `compras`, `aportes`, `facturas` y el
-   balance, y se verifica que le llegan sus filas y ninguna de Jose ni de
-   Yenny. Y al revés: que un intento de registrar dinero o un gasto a nombre
-   de otro lo niega la base.
+   balance, y se verifica que le llegan sus filas y ninguna de Jose. Y al
+   revés: que un intento de registrar dinero o un gasto a nombre de otro lo
+   niega la base, y que a Yenny se lo niega incluso a su propio nombre,
+   porque no tiene bolsa.
 
    Ojo con la trampa de esta prueba: "Alix no ve nada" fallaba sola si alguien
    rompía la política. "Alix ve lo suyo" puede pasar con una política que deje

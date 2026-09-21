@@ -26,6 +26,9 @@ export default async function Dinero() {
   // trabajo de Jose y solo a él se le cuentan.
   const esComprador = perfil.rol === 'comprador'
   const veTodo = esComprador || perfil.rol === 'financista'
+  // Yenny pone el dinero y no tiene bolsa: no hay balance propio que
+  // enseñarle, ni formulario para registrar en una bolsa que no existe.
+  const tieneBolsa = perfil.rol !== 'financista'
 
   const supabase = await crearClienteServidor()
 
@@ -79,17 +82,20 @@ export default async function Dinero() {
     <main className="con-barra mx-auto max-w-md px-4 py-6">
       <Encabezado titulo="Balance" nombre={perfil.nombre} />
 
-      {propio ? (
-        <ResumenBalance balance={propio.balance} nombre={perfil.nombre} />
-      ) : (
-        <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">
-          No se pudo calcular tu balance. Vuelve a intentarlo.
-        </p>
-      )}
+      {tieneBolsa &&
+        (propio ? (
+          <ResumenBalance balance={propio.balance} nombre={perfil.nombre} />
+        ) : (
+          <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-800">
+            No se pudo calcular tu balance. Vuelve a intentarlo.
+          </p>
+        ))}
 
       {ajenos.length > 0 && (
-        <section className="mt-4">
-          <h2 className="mb-2 text-xs font-medium text-slate-600">Las otras bolsas</h2>
+        <section className={tieneBolsa ? 'mt-4' : ''}>
+          <h2 className="mb-2 text-xs font-medium text-slate-600">
+            {tieneBolsa ? 'La otra bolsa' : 'Las bolsas de la casa'}
+          </h2>
           <div className="flex flex-col gap-2">
             {ajenos.map(({ id, nombre, balance }) => (
               <ResumenBalance key={id} balance={balance} nombre={nombre} variante="fila" />
@@ -119,10 +125,12 @@ export default async function Dinero() {
           )
         ))}
 
-      <section className="mt-6">
-        <h2 className="mb-2 font-semibold text-slate-900">Registrar dinero recibido</h2>
-        <FormularioAporte />
-      </section>
+      {tieneBolsa && (
+        <section className="mt-6">
+          <h2 className="mb-2 font-semibold text-slate-900">Registrar dinero recibido</h2>
+          <FormularioAporte />
+        </section>
+      )}
 
       <section className="mt-6">
         <h2 className="mb-2 font-semibold text-slate-900">
@@ -155,7 +163,11 @@ export default async function Dinero() {
           {aportes !== null && aportes.length === 0 && (
             <Vacio
               titulo="Todavía no hay dinero registrado"
-              ayuda="Cuando recibas dinero, regístralo arriba para que tu balance cuadre."
+              ayuda={
+                tieneBolsa
+                  ? 'Cuando recibas dinero, regístralo arriba para que tu balance cuadre.'
+                  : 'Cuando Alix o Jose registren el dinero que les envíes, aparecerá aquí.'
+              }
             />
           )}
         </div>

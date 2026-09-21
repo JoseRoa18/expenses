@@ -20,6 +20,9 @@ export default async function Compras() {
   // es la base de datos (política "leer compras"), no esta consulta: esto
   // solo decide si la pantalla escribe de quién es cada gasto.
   const veTodo = perfil.rol === 'comprador' || perfil.rol === 'financista'
+  // Yenny audita los gastos de los demás, pero no tiene bolsa de la que
+  // gastar, así que no se le ofrece el formulario.
+  const tieneBolsa = perfil.rol !== 'financista'
 
   const supabase = await crearClienteServidor()
   const [{ data, error: errorCompras }, { data: perfiles }] = await Promise.all([
@@ -51,12 +54,14 @@ export default async function Compras() {
     <main className="con-barra mx-auto max-w-md px-4 py-6">
       <Encabezado titulo="Gastos" nombre={perfil.nombre} />
 
-      <section className="mb-6">
-        <h2 className="mb-2 font-semibold text-slate-900">
-          {veTodo ? 'Registrar gasto suelto' : 'Registrar un gasto tuyo'}
-        </h2>
-        <FormularioCompra />
-      </section>
+      {tieneBolsa && (
+        <section className="mb-6">
+          <h2 className="mb-2 font-semibold text-slate-900">
+            {veTodo ? 'Registrar gasto suelto' : 'Registrar un gasto tuyo'}
+          </h2>
+          <FormularioCompra />
+        </section>
+      )}
 
       <div className="flex flex-col gap-3">
         {compras === null && (

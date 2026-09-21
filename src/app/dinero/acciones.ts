@@ -10,9 +10,12 @@ type Resultado = { error: string | null }
 export async function registrarAporte(datos: FormData): Promise<Resultado> {
   const perfil = await obtenerPerfil()
   if (!perfil) return { error: 'No hay sesión' }
-  // Cualquiera registra el dinero que recibe, pero siempre a su nombre: el
-  // id que se inserta es el de la sesión, nunca uno que venga del
+  // Quien tiene bolsa registra el dinero que recibe, siempre a su nombre:
+  // el id que se inserta es el de la sesión, nunca uno que venga del
   // formulario. La política de `aportes` exige lo mismo desde la base.
+  if (perfil.rol === 'financista') {
+    return { error: 'Yenny pone el dinero; quien lo recibe es quien lo registra' }
+  }
 
   const fecha = String(datos.get('fecha') ?? '')
   const metodo = String(datos.get('metodo') ?? '').trim()

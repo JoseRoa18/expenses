@@ -335,9 +335,13 @@ describe('Yenny audita las tres bolsas', () => {
     expect(ids).toContain(idFacturaAlix)
   })
 
-  it('el balance le devuelve una fila por persona', async () => {
+  it('el balance le devuelve las dos bolsas, y ninguna suya', async () => {
+    // Yenny pone el dinero: no recibe ni gasta, así que no tiene bolsa. Si
+    // apareciera, saldría en $0,00 y "Al día" -- indistinguible de una
+    // bolsa real que cuadra, y una invitación a registrar dinero en ella.
     const filas = await leerBalances(yenny)
-    expect(filas.map((f) => f.nombre).sort()).toEqual(['Alix', 'Jose', 'Yenny'])
+    expect(filas.map((f) => f.nombre).sort()).toEqual(['Alix', 'Jose'])
+    expect(filas.map((f) => f.persona_id)).not.toContain(idPerfilYenny)
   })
 
   it('la bolsa de Jose refleja exactamente la semilla que se sembró', async () => {
@@ -382,22 +386,24 @@ describe('Yenny audita las tres bolsas', () => {
     expect(balanceDelta.neto).toBeCloseTo(222.22, 2)
   })
 
-  it('registra un gasto suyo', async () => {
-    // Cambió respecto al diseño anterior: Yenny también tiene su bolsa, así
-    // que registra lo suyo. Lo que sigue sin poder es escribir en la de
-    // otro, que es la prueba de abajo.
-    const { data, error } = await yenny
-      .from('compras')
-      .insert({
-        registrada_por: idPerfilYenny,
-        descripcion: 'prueba de permisos: gasto propio de Yenny',
-        monto_bs: 100,
-        monto_usd: 1,
-      })
-      .select('id')
-      .single()
-    expect(error).toBeNull()
-    idsCompras.push(data!.id)
+  it('no puede registrar un gasto, ni a su propio nombre', async () => {
+    // No es una cuestión de a nombre de quién: Yenny no tiene bolsa de la
+    // que gastar. La política lo niega por rol, no por el id.
+    const { error } = await yenny.from('compras').insert({
+      registrada_por: idPerfilYenny,
+      descripcion: 'intento no autorizado',
+      monto_bs: 100,
+      monto_usd: 1,
+    })
+    expect(error).not.toBeNull()
+  })
+
+  it('no puede registrar un ingreso, ni a su propio nombre', async () => {
+    const { error } = await yenny.from('aportes').insert({
+      registrada_por: idPerfilYenny,
+      monto_usd: 100,
+    })
+    expect(error).not.toBeNull()
   })
 
   it('no puede registrar un gasto a nombre de Jose', async () => {
@@ -434,9 +440,9 @@ describe('Yenny audita las tres bolsas', () => {
 })
 
 describe('Jose ve las tres bolsas', () => {
-  it('el balance le devuelve una fila por persona', async () => {
+  it('el balance le devuelve las dos bolsas', async () => {
     const filas = await leerBalances(jose)
-    expect(filas.map((f) => f.nombre).sort()).toEqual(['Alix', 'Jose', 'Yenny'])
+    expect(filas.map((f) => f.nombre).sort()).toEqual(['Alix', 'Jose'])
   })
 
   it('lee el gasto de Alix', async () => {

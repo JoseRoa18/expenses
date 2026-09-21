@@ -6,9 +6,10 @@ Control de gastos compartidos entre tres personas.
 - **Jose** compra lo que se pide, sube la factura y entrega.
 - **Yenny** pone el dinero y lo audita todo.
 
-Cada persona tiene su propia bolsa: lo que recibe menos lo que gasta. **Alix
-solo ve la suya**; Jose y Yenny ven las tres. Eso lo impone la base de datos,
-no la app.
+Alix y Jose tienen cada uno su bolsa: lo que recibe menos lo que gasta, y
+quien recibe el dinero es quien lo registra. **Alix solo ve la suya**; Jose y
+Yenny ven las dos. Yenny no tiene bolsa -- pone el dinero y audita. Eso lo
+impone la base de datos, no la app.
 
 ## Arrancar en local
 

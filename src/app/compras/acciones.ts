@@ -13,8 +13,13 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
 
   const solicitudId = String(datos.get('solicitud_id') ?? '') || null
 
-  // Cualquiera registra un gasto suyo, y sale de su propia bolsa. Lo que
-  // sigue siendo solo de Jose es comprar lo que otro pidió: eso mueve una
+  // Quien tiene bolsa registra sus gastos, y salen de su propia bolsa.
+  // Yenny no tiene: pone el dinero y audita.
+  if (perfil.rol === 'financista') {
+    return { error: 'Yenny no registra gastos: pone el dinero y lo audita' }
+  }
+
+  // Comprar lo que otro pidió sigue siendo solo de Jose: eso mueve una
   // solicitud a "comprada" y es su trabajo, no el de quien la pidió.
   if (solicitudId && perfil.rol !== 'comprador') {
     return { error: 'Solo Jose compra lo que otro pidió' }
