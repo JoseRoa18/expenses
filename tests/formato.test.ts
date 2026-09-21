@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatearUsd, formatearBs, formatearFecha, TITULOS_BALANCE } from '@/lib/formato'
+import { formatearUsd, formatearBs, formatearFecha, formatearPeso, TITULOS_BALANCE } from '@/lib/formato'
 import { calcularBalance } from '@/lib/balance'
 
 describe('formatearUsd', () => {
@@ -39,5 +39,33 @@ describe('TITULOS_BALANCE', () => {
 
   it('cuando cuadra, dice que está al día', () => {
     expect(TITULOS_BALANCE[calcularBalance([100], [100]).estado]).toBe('Al día')
+  })
+})
+
+describe('formatearPeso', () => {
+  it('muestra los bytes sueltos tal cual', () => {
+    expect(formatearPeso(512)).toBe('512 B')
+  })
+
+  it('muestra los kilobytes sin decimales', () => {
+    // A este tamaño el decimal no le dice nada a nadie.
+    expect(formatearPeso(780 * 1024)).toBe('780 KB')
+  })
+
+  it('muestra los megabytes con un decimal, a la venezolana', () => {
+    expect(formatearPeso(4.2 * 1024 * 1024)).toBe('4,2 MB')
+  })
+
+  it('un mega exacto se escribe con su decimal', () => {
+    // '1 MB' y '1,0 MB' mezclados en la misma lista se ven descuidados.
+    expect(formatearPeso(1024 * 1024)).toBe('1,0 MB')
+  })
+
+  it('justo por debajo del mega sigue siendo KB', () => {
+    expect(formatearPeso(1024 * 1024 - 1)).toBe('1024 KB')
+  })
+
+  it('un archivo vacío no rompe', () => {
+    expect(formatearPeso(0)).toBe('0 B')
   })
 })

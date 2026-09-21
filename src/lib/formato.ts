@@ -84,3 +84,21 @@ export function hoyVenezuela(): string {
     day: '2-digit',
   }).format(new Date())
 }
+
+const unDecimal = new Intl.NumberFormat('es-VE', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+
+/**
+ * El peso de un archivo, para que Jose vea qué le pasó a su foto al
+ * comprimirla ("4,2 MB → 780 KB").
+ *
+ * En megas lleva un decimal y en kilos ninguno: a 780 KB, el decimal no le
+ * dice nada a nadie, y en megas es justo lo que deja ver la diferencia.
+ */
+export function formatearPeso(bytes: number): string {
+  if (bytes < 1024) return `${Math.round(bytes)} B`
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${unDecimal.format(bytes / (1024 * 1024))} MB`
+}

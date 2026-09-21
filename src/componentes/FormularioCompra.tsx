@@ -1,22 +1,39 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { registrarCompra } from '@/app/compras/acciones'
 import { crearClienteNavegador } from '@/lib/supabase/navegador'
 import { tasaImplicita } from '@/lib/balance'
-import { formatearBs, formatearUsd, hoyVenezuela } from '@/lib/formato'
+import { formatearBs, formatearPeso, formatearUsd, hoyVenezuela } from '@/lib/formato'
 import { parsearMonto, MONTO_MAXIMO } from '@/lib/montos'
+import { comprimirImagen } from '@/lib/imagenes'
 import { ERROR_CONEXION } from '@/lib/errores'
+import { Boton } from '@/componentes/Boton'
+import { Campo, CLASE_ENTRADA } from '@/componentes/Campo'
+import { IconoArchivo, IconoCamara, IconoQuitar } from '@/componentes/Iconos'
 
 // Mismo límite que el bucket 'facturas' (supabase/migraciones/0003), para
 // avisarle a Jose ANTES de intentar subir en vez de dejar que el bucket lo
-// rechace después de que ya escribió todo el formulario. Una foto de
-// factura tomada con el teléfono pesa 2-6 MB: muy por debajo de esto, pero
-// muy por encima del límite de 1 MB (Next) / 4.5 MB (Vercel) que tendría un
-// <input type=file> si sus bytes viajaran dentro de esta Server Action --
-// por eso se suben aparte, directo al bucket, antes de llamar a
-// registrarCompra.
+// rechace después de que ya escribió todo el formulario. Con la compresión
+// una foto ya no debería acercarse nunca a esto, pero un PDF pesado sí
+// puede: los PDF no se comprimen.
 const TAMANO_MAXIMO_FACTURA = 10 * 1024 * 1024
+
+/**
+ * Una factura ya elegida y lista (o casi) para subir.
+ *
+ * `pesaba` es el tamaño con el que salió de la cámara y `archivo` es lo que
+ * de verdad se va a subir. Se guardan los dos para poder mostrar "4,2 MB →
+ * 780 KB": sin eso, la compresión es magia invisible, y el día que una foto
+ * salga ilegible nadie va a saber por dónde empezar a mirar.
+ */
+type Adjunto = {
+  id: string
+  nombre: string
+  pesaba: number
+  archivo: File
+  listo: boolean
+}
 
 export function FormularioCompra({
   solicitudId,
@@ -27,8 +44,14 @@ export function FormularioCompra({
 }) {
   const [montoBs, setMontoBs] = useState('')
   const [montoUsd, setMontoUsd] = useState('')
+  const [adjuntos, setAdjuntos] = useState<Adjunto[]>([])
   const [error, setError] = useState<string | null>(null)
   const [pendiente, iniciar] = useTransition()
+
+  const refCamara = useRef<HTMLInputElement>(null)
+  const refArchivos = useRef<HTMLInputElement>(null)
+
+  const comprimiendo = adjuntos.some((a) => !a.listo)
 
   // Los campos son texto libre, no <input type="number">: Jose escribe los
   // montos a la venezolana (punto de millares, coma decimal, ej. "1.500")
@@ -50,6 +73,36 @@ export function FormularioCompra({
   const tasa =
     bsParseado !== null && usdParseado !== null ? tasaImplicita(bsParseado, usdParseado) : null
 
+  /**
+   * Se comprime al elegir la foto, no al enviar.
+   *
+   * Así la espera ocurre mientras Jose escribe los montos -- tiempo que iba
+   * a pasar de todas formas -- y no después de tocar "Registrar compra",
+   * que es justo cuando él ya está guardando el teléfono.
+   */
+  async function agregar(lista: FileList | null) {
+    if (!lista || lista.length === 0) return
+    setError(null)
+
+    for (const original of Array.from(lista)) {
+      const id = crypto.randomUUID()
+      setAdjuntos((actuales) => [
+        ...actuales,
+        { id, nombre: original.name, pesaba: original.size, archivo: original, listo: false },
+      ])
+
+      // comprimirImagen nunca lanza: si no puede, devuelve el original.
+      const listo = await comprimirImagen(original)
+      setAdjuntos((actuales) =>
+        actuales.map((a) => (a.id === id ? { ...a, archivo: listo, listo: true } : a)),
+      )
+    }
+  }
+
+  function quitar(id: string) {
+    setAdjuntos((actuales) => actuales.filter((a) => a.id !== id))
+  }
+
   function enviar(datos: FormData) {
     // Comprobación de nuevo aquí (no solo en el botón deshabilitado): un
     // Enter dentro del formulario no pasa por el estado `disabled` del
@@ -64,31 +117,33 @@ export function FormularioCompra({
       setError('El monto en dólares no se entiende. Escríbelo así: 12,50')
       return
     }
+    if (comprimiendo) {
+      setError('Espera a que terminen de prepararse las fotos.')
+      return
+    }
 
-    const archivos = datos.getAll('facturas').filter((f): f is File => f instanceof File && f.size > 0)
+    const archivos = adjuntos.map((a) => a.archivo)
 
     // Se rechaza ANTES de tocar la red: escribir todo el formulario para
-    // enterarse recién al final de que la foto pesa demasiado (y perderlo
+    // enterarse recién al final de que el archivo pesa demasiado (y perderlo
     // todo porque no había try/catch ni error.tsx) es exactamente el
     // defecto que se corrige aquí.
     const archivoGrande = archivos.find((a) => a.size > TAMANO_MAXIMO_FACTURA)
     if (archivoGrande) {
       setError(
-        `La foto "${archivoGrande.name}" pesa más de 10 MB. Usa una foto más liviana o comprime el PDF.`,
+        `"${archivoGrande.name}" pesa más de 10 MB incluso ya preparado. Si es un PDF, súbelo más liviano.`,
       )
       return
     }
-
-    // No debe viajar dentro del FormData que llega a la Server Action: eso
-    // es exactamente el body grande que Next/Vercel rechazan. Las fotos se
-    // suben aparte, directo al bucket (ver más abajo).
-    datos.delete('facturas')
 
     iniciar(async () => {
       const compraId = crypto.randomUUID()
       const rutas: string[] = []
       let fallosSubida = 0
 
+      // Las fotos no viajan dentro del FormData de la Server Action: ese es
+      // exactamente el body grande que Next/Vercel rechazan. Se suben
+      // aparte, directo al bucket.
       if (archivos.length > 0) {
         const navegador = crearClienteNavegador()
         for (const archivo of archivos) {
@@ -128,6 +183,7 @@ export function FormularioCompra({
       if (!resultado.error) {
         setMontoBs('')
         setMontoUsd('')
+        setAdjuntos([])
       }
 
       const fallosTotal = fallosSubida + (resultado.facturasFallidas ?? 0)
@@ -149,20 +205,38 @@ export function FormularioCompra({
   }
 
   return (
-    <form action={enviar} className="rounded-2xl bg-white p-4 shadow-sm">
+    <form action={enviar} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5">
       {solicitudId && <input type="hidden" name="solicitud_id" value={solicitudId} />}
 
-      <input
-        name="descripcion"
-        required
-        defaultValue={descripcionInicial}
-        placeholder="¿Qué compraste?"
-        className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-3"
-      />
+      <Campo etiqueta="¿Qué compraste?" className="mb-3">
+        <input
+          name="descripcion"
+          required
+          defaultValue={descripcionInicial}
+          placeholder="Dos cajas de leche"
+          className={CLASE_ENTRADA}
+        />
+      </Campo>
 
-      <div className="mb-2 grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Monto factura (Bs)</span>
+      <div className="mb-1 grid grid-cols-2 gap-2">
+        <Campo
+          etiqueta="Monto factura (Bs)"
+          pie={
+            <>
+              {bsExcede && (
+                <span className="text-red-600">
+                  Demasiado alto. Revisa que no tenga un cero de más.
+                </span>
+              )}
+              {!bsExcede && bsEscrito && bsParseado === null && (
+                <span className="text-red-600">No se entiende. Ej: 1.500,00</span>
+              )}
+              {!bsInvalido && bsParseado !== null && (
+                <span className="cifras text-slate-500">Se guardará: {formatearBs(bsParseado)}</span>
+              )}
+            </>
+          }
+        >
           <input
             name="monto_bs"
             type="text"
@@ -171,22 +245,30 @@ export function FormularioCompra({
             required
             value={montoBs}
             onChange={(e) => setMontoBs(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-3"
+            className={`${CLASE_ENTRADA} cifras`}
           />
-          <p className="mt-1 min-h-4 text-xs">
-            {bsExcede && (
-              <span className="text-red-600">Demasiado alto. Revisa que no tenga un cero de más.</span>
-            )}
-            {!bsExcede && bsEscrito && bsParseado === null && (
-              <span className="text-red-600">No se entiende. Ej: 1.500,00</span>
-            )}
-            {!bsInvalido && bsParseado !== null && (
-              <span className="text-slate-500">Se guardará: {formatearBs(bsParseado)}</span>
-            )}
-          </p>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs text-slate-500">Monto en dólares</span>
+        </Campo>
+
+        <Campo
+          etiqueta="Monto en dólares"
+          pie={
+            <>
+              {usdExcede && (
+                <span className="text-red-600">
+                  Demasiado alto. Revisa que no tenga un cero de más.
+                </span>
+              )}
+              {!usdExcede && usdEscrito && usdParseado === null && (
+                <span className="text-red-600">No se entiende. Ej: 12,50</span>
+              )}
+              {!usdInvalido && usdParseado !== null && (
+                <span className="cifras text-slate-500">
+                  Se guardará: {formatearUsd(usdParseado)}
+                </span>
+              )}
+            </>
+          }
+        >
           <input
             name="monto_usd"
             type="text"
@@ -195,63 +277,116 @@ export function FormularioCompra({
             required
             value={montoUsd}
             onChange={(e) => setMontoUsd(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-3"
+            className={`${CLASE_ENTRADA} cifras`}
           />
-          <p className="mt-1 min-h-4 text-xs">
-            {usdExcede && (
-              <span className="text-red-600">Demasiado alto. Revisa que no tenga un cero de más.</span>
-            )}
-            {!usdExcede && usdEscrito && usdParseado === null && (
-              <span className="text-red-600">No se entiende. Ej: 12,50</span>
-            )}
-            {!usdInvalido && usdParseado !== null && (
-              <span className="text-slate-500">Se guardará: {formatearUsd(usdParseado)}</span>
-            )}
-          </p>
-        </label>
+        </Campo>
       </div>
 
-      <p className="mb-2 h-5 text-xs text-slate-500">
-        {tasa !== null && `Tasa: ${formatearBs(tasa)} por dólar`}
+      <p className="mb-3 h-5 text-xs text-slate-500">
+        {tasa !== null && <span className="cifras">Tasa: {formatearBs(tasa)} por dólar</span>}
       </p>
 
-      <label className="mb-2 block">
-        <span className="mb-1 block text-xs text-slate-500">Fecha de compra</span>
+      <Campo etiqueta="Fecha de compra" className="mb-3">
         <input
           name="fecha_compra"
           type="date"
           defaultValue={hoyVenezuela()}
-          className="w-full rounded-xl border border-slate-200 px-3 py-3"
+          className={`${CLASE_ENTRADA} cifras`}
         />
-      </label>
+      </Campo>
 
-      <textarea
-        name="notas"
-        rows={2}
-        placeholder="Notas (opcional)"
-        className="mb-2 w-full rounded-xl border border-slate-200 px-3 py-3"
-      />
+      <Campo etiqueta="Notas" className="mb-4">
+        <textarea name="notas" rows={2} placeholder="Opcional" className={CLASE_ENTRADA} />
+      </Campo>
 
-      <label className="mb-3 block">
-        <span className="mb-1 block text-xs text-slate-500">Foto(s) de la factura (máx. 10 MB c/u)</span>
+      <fieldset className="mb-4">
+        <legend className="mb-1 text-xs font-medium text-slate-600">Factura</legend>
+
+        {/* Dos entradas escondidas, una por botón. La de la cámara lleva
+            `capture`, que en el teléfono abre la cámara directamente en vez
+            del carrete. Ninguna lleva `name`: los archivos no viajan en el
+            FormData, se suben aparte. */}
         <input
-          name="facturas"
+          ref={refCamara}
           type="file"
-          multiple
-          accept="image/*,application/pdf"
-          className="w-full text-sm"
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          onChange={(e) => {
+            agregar(e.target.files)
+            // Se limpia para que volver a tomar una foto dispare el evento
+            // otra vez aunque el archivo se llame igual que el anterior.
+            e.target.value = ''
+          }}
         />
-      </label>
+        <input
+          ref={refArchivos}
+          type="file"
+          accept="image/*,application/pdf"
+          multiple
+          className="sr-only"
+          onChange={(e) => {
+            agregar(e.target.files)
+            e.target.value = ''
+          }}
+        />
 
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+        <div className="grid grid-cols-2 gap-2">
+          <Boton type="button" variante="secundario" onClick={() => refCamara.current?.click()}>
+            <IconoCamara />
+            Tomar foto
+          </Boton>
+          <Boton type="button" variante="secundario" onClick={() => refArchivos.current?.click()}>
+            <IconoArchivo />
+            Elegir archivo
+          </Boton>
+        </div>
 
-      <button
+        {adjuntos.length > 0 && (
+          <ul className="mt-3 flex flex-col gap-2">
+            {adjuntos.map((adjunto) => (
+              <li
+                key={adjunto.id}
+                className="flex items-center gap-2 rounded-xl bg-slate-50 py-2 pr-1 pl-3 text-sm"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-slate-800">{adjunto.nombre}</span>
+                  <span className="cifras block text-xs text-slate-500">
+                    {!adjunto.listo
+                      ? 'Preparando...'
+                      : adjunto.archivo.size < adjunto.pesaba
+                        ? `${formatearPeso(adjunto.pesaba)} → ${formatearPeso(adjunto.archivo.size)}`
+                        : formatearPeso(adjunto.archivo.size)}
+                  </span>
+                </span>
+                <Boton
+                  type="button"
+                  variante="texto"
+                  aria-label={`Quitar ${adjunto.nombre}`}
+                  onClick={() => quitar(adjunto.id)}
+                  className="no-underline"
+                >
+                  <IconoQuitar />
+                </Boton>
+              </li>
+            ))}
+          </ul>
+        )}
+      </fieldset>
+
+      {error && (
+        <p className="mb-2 text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      )}
+
+      <Boton
         type="submit"
-        disabled={pendiente || bsInvalido || usdInvalido}
-        className="h-12 w-full rounded-xl bg-slate-900 font-medium text-white disabled:opacity-50"
+        disabled={pendiente || comprimiendo || bsInvalido || usdInvalido}
+        className="w-full"
       >
-        {pendiente ? 'Guardando...' : 'Registrar compra'}
-      </button>
+        {pendiente ? 'Guardando...' : comprimiendo ? 'Preparando fotos...' : 'Registrar compra'}
+      </Boton>
     </form>
   )
 }
