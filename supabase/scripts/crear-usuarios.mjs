@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
+import { randomUUID } from 'node:crypto'
 
 // dotenv carga `.env` por defecto; los secretos de este proyecto viven en
 // `.env.local`, asi que hay que nombrarlo explicitamente.
@@ -13,18 +14,16 @@ if (!url || !servicio) {
   process.exit(1)
 }
 
+// Los PIN ya no se asignan aqui: cada persona crea el suyo la primera vez
+// que entra en la app. Una cuenta recien creada nace con una contrasena
+// aleatoria que nadie ve ni se guarda en ningun sitio -- existe solo para
+// que no haya cuenta sin contrasena, y deja de servir en cuanto su duena
+// crea su PIN.
 const PERSONAS = [
-  { nombre: 'Alix',  correo: 'alix@expenses.local',  rol: 'solicitante', pin: process.env.PIN_ALIX },
-  { nombre: 'Jose',  correo: 'jose@expenses.local',  rol: 'comprador',   pin: process.env.PIN_JOSE },
-  { nombre: 'Yenny', correo: 'yenny@expenses.local', rol: 'financista',  pin: process.env.PIN_YENNY },
+  { nombre: 'Alix',  correo: 'alix@expenses.local',  rol: 'solicitante' },
+  { nombre: 'Jose',  correo: 'jose@expenses.local',  rol: 'comprador'   },
+  { nombre: 'Yenny', correo: 'yenny@expenses.local', rol: 'financista'  },
 ]
-
-for (const persona of PERSONAS) {
-  if (!/^\d{6}$/.test(persona.pin ?? '')) {
-    console.error(`El PIN de ${persona.nombre} debe ser exactamente 6 dígitos.`)
-    process.exit(1)
-  }
-}
 
 const admin = createClient(url, servicio, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -42,17 +41,15 @@ for (const persona of PERSONAS) {
   let id
 
   if (yaExiste) {
+    // A una cuenta que ya existe NO se le toca la contrasena: si su duena
+    // ya creo su PIN, cambiarselo aqui la dejaria fuera sin avisar. Para
+    // borrar un PIN a proposito esta `npm run reiniciar-pin`.
     id = yaExiste.id
-    const { error } = await admin.auth.admin.updateUserById(id, { password: persona.pin })
-    if (error) {
-      console.error(`No se pudo actualizar el PIN de ${persona.nombre}:`, error.message)
-      process.exit(1)
-    }
-    console.log(`${persona.nombre}: PIN actualizado`)
+    console.log(`${persona.nombre}: la cuenta ya existe (su PIN no se toca)`)
   } else {
     const { data, error } = await admin.auth.admin.createUser({
       email: persona.correo,
-      password: persona.pin,
+      password: randomUUID(),
       email_confirm: true,
     })
     if (error) {
@@ -60,9 +57,11 @@ for (const persona of PERSONAS) {
       process.exit(1)
     }
     id = data.user.id
-    console.log(`${persona.nombre}: cuenta creada`)
+    console.log(`${persona.nombre}: cuenta creada, sin PIN todavia`)
   }
 
+  // Se actualizan nombre y rol, pero no `pin_configurado_en`: esa columna
+  // es de la persona, y repetir este script no debe borrarle el PIN.
   const { error: errorPerfil } = await admin
     .from('profiles')
     .upsert({ id, nombre: persona.nombre, rol: persona.rol }, { onConflict: 'id' })
@@ -73,4 +72,5 @@ for (const persona of PERSONAS) {
   }
 }
 
-console.log('\nListo. Las tres cuentas existen con su rol y su PIN.')
+console.log('\nListo. Las tres cuentas existen con su rol.')
+console.log('Cada quien crea su PIN la primera vez que abra la app.')

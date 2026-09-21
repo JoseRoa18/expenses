@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "migrar": "node supabase/scripts/migrar.mjs",
-    "crear-usuarios": "node supabase/scripts/crear-usuarios.mjs"
+    "crear-usuarios": "node supabase/scripts/crear-usuarios.mjs",
+    "reiniciar-pin": "node supabase/scripts/reiniciar-pin.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

@@ -45,3 +45,29 @@ export function exigirEntorno(): Entorno {
   }
   return resultado.entorno
 }
+
+/**
+ * La llave de servicio, que puentea las políticas de la base de datos.
+ *
+ * Solo la usa el camino de "crear mi PIN": quien está en esa pantalla
+ * todavía no tiene sesión, y las políticas de `profiles` exigen estar
+ * autenticado, así que no hay forma de preguntar con la llave pública si
+ * una cuenta ya tiene PIN.
+ *
+ * Va aparte de `leerEntorno` a propósito: el middleware, que es quien avisa
+ * de las variables que faltan, corre en cada petición y no necesita esta.
+ * Exigirla allí convertiría "falta una variable que solo hace falta para
+ * entrar" en "la app entera no responde".
+ */
+export function exigirLlaveDeServicio(): string {
+  const llave = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!llave?.trim()) {
+    throw new Error(
+      'Falta configurar SUPABASE_SERVICE_ROLE_KEY. En local va en .env.local; ' +
+        'en Vercel, en Settings → Environment Variables (y hay que volver a ' +
+        'desplegar para que surta efecto). Sin ella nadie puede crear su PIN. ' +
+        'Nunca con el prefijo NEXT_PUBLIC_: eso la mandaría al navegador.',
+    )
+  }
+  return llave
+}

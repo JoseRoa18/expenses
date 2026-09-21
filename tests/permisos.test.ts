@@ -11,12 +11,33 @@ const URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 const SERVICIO = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-async function entrarComo(correo: string, pin: string): Promise<SupabaseClient> {
+/**
+ * Abre una sesión como esa persona SIN saber su PIN.
+ *
+ * Desde que cada quien crea el suyo, nadie -- tampoco quien corre las
+ * pruebas -- conoce los PIN, así que ya no se puede entrar con contraseña.
+ * En su lugar se pide un enlace de un solo uso con la llave de servicio y
+ * se canjea por una sesión normal. No toca la contraseña de nadie.
+ *
+ * La sesión que sale de aquí es una sesión corriente de `authenticated`:
+ * las políticas de RLS se le aplican igual que a la persona de verdad, que
+ * es justo lo que esta suite existe para comprobar.
+ */
+async function entrarComo(correo: string): Promise<SupabaseClient> {
+  const { data, error } = await admin.auth.admin.generateLink({
+    type: 'magiclink',
+    email: correo,
+  })
+  if (error) throw new Error(`No se pudo generar el enlace de ${correo}: ${error.message}`)
+
   const cliente = createClient(URL, ANON, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { error } = await cliente.auth.signInWithPassword({ email: correo, password: pin })
-  if (error) throw new Error(`No se pudo entrar como ${correo}: ${error.message}`)
+  const { error: errorCanje } = await cliente.auth.verifyOtp({
+    token_hash: data.properties.hashed_token,
+    type: 'email',
+  })
+  if (errorCanje) throw new Error(`No se pudo entrar como ${correo}: ${errorCanje.message}`)
   return cliente
 }
 
@@ -60,9 +81,9 @@ let idPerfilYenny: string
 let balanceAntes: { total_aportes: number; total_gastos: number }
 
 beforeAll(async () => {
-  alix = await entrarComo('alix@expenses.local', process.env.PIN_ALIX!)
-  jose = await entrarComo('jose@expenses.local', process.env.PIN_JOSE!)
-  yenny = await entrarComo('yenny@expenses.local', process.env.PIN_YENNY!)
+  alix = await entrarComo('alix@expenses.local')
+  jose = await entrarComo('jose@expenses.local')
+  yenny = await entrarComo('yenny@expenses.local')
 
   idPerfilAlix = (await alix.from('profiles').select('id').eq('nombre', 'Alix').single())
     .data!.id
