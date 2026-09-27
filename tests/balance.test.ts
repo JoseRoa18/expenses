@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calcularBalance, tasaImplicita } from '@/lib/balance'
+import { calcularBalance, sumarUsd, tasaImplicita } from '@/lib/balance'
 
 describe('calcularBalance', () => {
   it('cuando Yenny mandó más de lo gastado, queda dinero disponible', () => {
@@ -62,5 +62,12 @@ describe('tasaImplicita', () => {
 
   it('devuelve null si el monto en dólares es negativo', () => {
     expect(tasaImplicita(1500, -5)).toBeNull()
+  })
+})
+
+describe('sumarUsd', () => {
+  it('suma en centavos, sin arrastrar decimales', () => {
+    expect(sumarUsd([0.1, 0.2])).toBe(0.3)
+    expect(sumarUsd([])).toBe(0)
   })
 })

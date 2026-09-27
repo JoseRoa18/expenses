@@ -47,10 +47,8 @@ export function FormularioSolicitud() {
     <form
       ref={formRef}
       action={enviar}
-      className="mb-6 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5"
+      className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-900/5"
     >
-      <h2 className="mb-3 font-semibold text-slate-900">Pedir algo</h2>
-
       <Campo etiqueta="¿Qué necesitas?" className="mb-3">
         <input name="titulo" required placeholder="Harina de maíz" className={CLASE_ENTRADA} />
       </Campo>

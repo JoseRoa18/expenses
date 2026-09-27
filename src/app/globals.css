@@ -17,6 +17,18 @@
  */
 @theme {
   --font-sans: var(--fuente-texto), ui-sans-serif, system-ui, sans-serif;
+
+  /*
+   * Los colores de los gráficos del resumen. Cada uno dice siempre lo mismo
+   * en todos los gráficos: azul es dinero que entró, naranja es dinero que
+   * salió. Son los dos primeros de una paleta comprobada para daltonismo
+   * (se distinguen también con protanopia y deuteranopia) y pasan 3:1 de
+   * contraste sobre el blanco de las tarjetas. El saldo, que es otra
+   * medida, va en la tinta de la app para no confundirse con ninguno.
+   */
+  --color-recibido: #2a78d6;
+  --color-gastado: #eb6834;
+  --color-saldo: #334155;
 }
 
 /*

@@ -1,6 +1,6 @@
 /**
  * Los íconos de la app, dibujados a mano en SVG en vez de traer una
- * librería entera: son seis, y cada kilobyte cuenta en un teléfono con
+ * librería entera: son una docena, y cada kilobyte cuenta en un teléfono con
  * datos móviles.
  *
  * Todos heredan el color del texto (`currentColor`) y el tamaño de la
@@ -79,6 +79,51 @@ export function IconoVacio({ className = 'h-7 w-7' }: Props) {
     <svg {...COMUNES} className={className}>
       <circle cx="12" cy="12" r="8.25" />
       <path d="M8.75 12h6.5" />
+    </svg>
+  )
+}
+
+export function IconoResumen({ className = 'h-6 w-6' }: Props) {
+  return (
+    <svg {...COMUNES} className={className}>
+      <path d="M4 20h16" />
+      <path d="M7 16v-5M12 16V7M17 16v-8" />
+    </svg>
+  )
+}
+
+export function IconoBuscar({ className = 'h-5 w-5' }: Props) {
+  return (
+    <svg {...COMUNES} className={className}>
+      <circle cx="11" cy="11" r="6.25" />
+      <path d="m20 20-4.5-4.5" />
+    </svg>
+  )
+}
+
+export function IconoFiltros({ className = 'h-5 w-5' }: Props) {
+  return (
+    <svg {...COMUNES} className={className}>
+      <path d="M4 7h10M18 7h2M4 17h4M12 17h8" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="17" r="2" />
+    </svg>
+  )
+}
+
+export function IconoDescargar({ className = 'h-5 w-5' }: Props) {
+  return (
+    <svg {...COMUNES} className={className}>
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+      <path d="M5 19.5h14" />
+    </svg>
+  )
+}
+
+export function IconoMas({ className = 'h-5 w-5' }: Props) {
+  return (
+    <svg {...COMUNES} className={className}>
+      <path d="M12 5v14M5 12h14" />
     </svg>
   )
 }

@@ -4,6 +4,9 @@ import {
   formatearBs,
   formatearFecha,
   formatearPeso,
+  formatearSaldo,
+  formatearUsdConSigno,
+  formatearUsdCorto,
   tituloBalance,
 } from '@/lib/formato'
 import { calcularBalance } from '@/lib/balance'
@@ -79,5 +82,43 @@ describe('formatearPeso', () => {
 
   it('un archivo vacío no rompe', () => {
     expect(formatearPeso(0)).toBe('0 B')
+  })
+})
+
+describe('formatearUsdConSigno', () => {
+  it('pone "+" a lo que suma y el signo menos de verdad a lo que resta', () => {
+    expect(formatearUsdConSigno(12.5)).toBe('+$12,50')
+    expect(formatearUsdConSigno(-12.5)).toBe('−$12,50')
+  })
+
+  it('el cero no lleva signo', () => {
+    expect(formatearUsdConSigno(0)).toBe('$0,00')
+    // Un -0,001 redondea a cero: "−$0,00" diría que falta algo.
+    expect(formatearUsdConSigno(-0.001)).toBe('$0,00')
+  })
+})
+
+describe('formatearSaldo', () => {
+  it('no pone "+" a un saldo positivo, pero sí el menos a uno negativo', () => {
+    expect(formatearSaldo(300)).toBe('$300,00')
+    expect(formatearSaldo(-42.5)).toBe('−$42,50')
+  })
+})
+
+describe('formatearUsdCorto', () => {
+  it('deja los montos chicos como están', () => {
+    expect(formatearUsdCorto(0)).toBe('$0')
+    expect(formatearUsdCorto(250)).toBe('$250')
+  })
+
+  it('usa "mil" y "M" siempre igual, sin mezclar K y k', () => {
+    expect(formatearUsdCorto(1000)).toBe('$1 mil')
+    expect(formatearUsdCorto(1500)).toBe('$1,5 mil')
+    expect(formatearUsdCorto(12000)).toBe('$12 mil')
+    expect(formatearUsdCorto(2_000_000)).toBe('$2 M')
+  })
+
+  it('los negativos llevan el signo menos delante del dólar', () => {
+    expect(formatearUsdCorto(-500)).toBe('−$500')
   })
 })

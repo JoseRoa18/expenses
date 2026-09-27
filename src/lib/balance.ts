@@ -29,6 +29,11 @@ export type Balance = {
 const aCentavos = (montos: number[]): number =>
   montos.reduce((total, monto) => total + Math.round(monto * 100), 0)
 
+/** La suma de varios montos en dólares, sin arrastrar errores de decimales. */
+export function sumarUsd(montos: number[]): number {
+  return aCentavos(montos) / 100
+}
+
 export function calcularBalance(aportesUsd: number[], gastosUsd: number[]): Balance {
   const centavosAportes = aCentavos(aportesUsd)
   const centavosGastos = aCentavos(gastosUsd)

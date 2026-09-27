@@ -34,6 +34,38 @@ export function formatearBs(monto: number): string {
 }
 
 /**
+ * Para montos que pueden ser negativos o que son una diferencia: "+$12,50",
+ * "−$12,50" (con el signo menos de verdad, no un guion). `formatearUsd` a
+ * secas dejaría "$-12,50", que se lee mal y se confunde con un guion.
+ */
+export function formatearUsdConSigno(monto: number): string {
+  const centavos = Math.round(monto * 100)
+  if (centavos === 0) return formatearUsd(0)
+  return `${centavos > 0 ? '+' : '−'}${formatearUsd(Math.abs(centavos) / 100)}`
+}
+
+/** Como `formatearUsdConSigno`, pero sin el "+": para un saldo, no para una diferencia. */
+export function formatearSaldo(monto: number): string {
+  const centavos = Math.round(monto * 100)
+  return centavos < 0 ? `−${formatearUsd(Math.abs(centavos) / 100)}` : formatearUsd(centavos / 100)
+}
+
+const hastaUnDecimal = new Intl.NumberFormat('es-VE', { maximumFractionDigits: 1 })
+
+/**
+ * Montos cortos para los ejes de los gráficos: "$500", "$1,5 mil", "$2 M".
+ * Se escribe a mano porque la notación compacta de `Intl` para es-VE mezcla
+ * "K" y "k" según el tamaño, y en un eje eso parece un error.
+ */
+export function formatearUsdCorto(monto: number): string {
+  const signo = monto < 0 ? '−' : ''
+  const valor = Math.abs(monto)
+  if (valor >= 1_000_000) return `${signo}$${hastaUnDecimal.format(valor / 1_000_000)} M`
+  if (valor >= 1_000) return `${signo}$${hastaUnDecimal.format(valor / 1_000)} mil`
+  return `${signo}$${hastaUnDecimal.format(valor)}`
+}
+
+/**
  * Recibe una fecha en formato ISO corto (`2026-09-20`) tal como la devuelve
  * Postgres para una columna `date`. Se parte a mano en vez de usar `new Date()`
  * porque construir una fecha desde ISO la interpreta en UTC y, en una zona

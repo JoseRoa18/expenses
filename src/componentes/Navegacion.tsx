@@ -2,21 +2,22 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { IconoBalance, IconoGastos, IconoSolicitudes } from '@/componentes/Iconos'
+import { IconoBalance, IconoGastos, IconoResumen, IconoSolicitudes } from '@/componentes/Iconos'
 
 /**
- * Las tres pantallas son las mismas para todos.
+ * Las cuatro pantallas son las mismas para todos.
  *
  * Antes esta barra dependía del rol -- Alix tenía una sola pantalla y por
  * eso no se le mostraba nada -- pero desde que cada persona tiene su propia
- * bolsa, los tres tienen balance, solicitudes y gastos. Lo que cambia es
- * *cuánto* se ve dentro de cada pantalla, y eso lo decide la base de datos,
- * no esta barra.
+ * bolsa, los tres tienen balance, solicitudes, gastos y resumen. Lo que
+ * cambia es *cuánto* se ve dentro de cada pantalla, y eso lo decide la base
+ * de datos, no esta barra.
  */
 const ENLACES = [
   { href: '/dinero', texto: 'Balance', Icono: IconoBalance },
   { href: '/solicitudes', texto: 'Solicitudes', Icono: IconoSolicitudes },
   { href: '/compras', texto: 'Gastos', Icono: IconoGastos },
+  { href: '/resumen', texto: 'Resumen', Icono: IconoResumen },
 ]
 
 export function Navegacion() {

@@ -154,6 +154,7 @@ export async function registrarCompra(datos: FormData): Promise<Resultado> {
   revalidatePath('/compras')
   revalidatePath('/solicitudes')
   revalidatePath('/dinero')
+  revalidatePath('/resumen')
 
   return { error: null, facturasFallidas: facturasFallidas > 0 ? facturasFallidas : undefined }
 }
@@ -190,6 +191,7 @@ export async function marcarEntregada(compraId: string): Promise<Resultado> {
 
   revalidatePath('/compras')
   revalidatePath('/solicitudes')
+  revalidatePath('/resumen')
   return { error: null }
 }
 
@@ -219,56 +221,4 @@ export async function rechazarSolicitud(id: string, motivo: string): Promise<Res
 
   revalidatePath('/solicitudes')
   return { error: null }
-}
-
-/**
- * URLs temporales (1 hora) para ver las fotos del bucket privado.
- *
- * Devuelve `null` (no `[]`) cuando la consulta a `facturas` falla: antes no
- * se comprobaba el error de esa consulta, así que un fallo de red o de
- * PostgREST se veía exactamente igual que "esta compra no tiene factura", y
- * a Yenny -- cuyo trabajo es justamente comprobar que la factura existe --
- * se le mostraba "Sin factura" como si fuera un hecho, no un fallo de red.
- */
-export async function obtenerEnlacesFacturas(compraId: string): Promise<string[] | null> {
-  // Esta comprobación existe aunque hoy sea redundante (usa la sesión de
-  // quien llama, y RLS ya filtra `facturas` y el bucket). El "arreglo"
-  // obvio, el día que un enlace firmado se comporte raro, es cambiar a un
-  // cliente con la llave de servicio -- y ese cambio, sin esto, repartiría
-  // las facturas de todos a cualquiera que pregunte por un id.
-  const perfil = await obtenerPerfil()
-  if (!perfil) return null
-
-  const supabase = await crearClienteServidor()
-
-  // Jose y Yenny ven las facturas de todos; el resto, solo las de sus
-  // propias compras.
-  if (perfil.rol !== 'comprador' && perfil.rol !== 'financista') {
-    const { data: propia } = await supabase
-      .from('compras')
-      .select('id')
-      .eq('id', compraId)
-      .eq('registrada_por', perfil.id)
-      .maybeSingle()
-    if (!propia) return null
-  }
-
-  const { data: facturas, error } = await supabase
-    .from('facturas')
-    .select('storage_path')
-    .eq('compra_id', compraId)
-
-  if (error) return null
-  if (!facturas?.length) return []
-
-  const enlaces = await Promise.all(
-    facturas.map(async ({ storage_path }) => {
-      const { data } = await supabase.storage
-        .from('facturas')
-        .createSignedUrl(storage_path, 3600)
-      return data?.signedUrl ?? null
-    }),
-  )
-
-  return enlaces.filter((u): u is string => u !== null)
 }

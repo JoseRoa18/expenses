@@ -39,6 +39,16 @@ export type Compra = {
   created_at: string
 }
 
+/**
+ * Una compra con lo que hace falta para mostrarla y filtrarla sin volver a
+ * preguntarle a la base: las rutas de sus facturas y, si fue un encargo,
+ * quién lo pidió. Sale de una sola consulta (ver `src/lib/datos.ts`).
+ */
+export type CompraDetallada = Compra & {
+  facturas: { storage_path: string }[]
+  solicitud: { creada_por: string } | null
+}
+
 export type Factura = {
   id: string
   compra_id: string

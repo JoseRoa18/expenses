@@ -52,5 +52,6 @@ export async function registrarAporte(datos: FormData): Promise<Resultado> {
   if (error || !aporte) return { error: 'No se pudo guardar' }
 
   revalidatePath('/dinero')
+  revalidatePath('/resumen')
   return { error: null }
 }
