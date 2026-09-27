@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Leyenda } from '@/componentes/graficos/Leyenda'
+import { EjeMontos } from '@/componentes/graficos/EjeMontos'
 import { escalaBonita, porcentaje } from '@/lib/graficos'
-import { formatearUsd, formatearUsdConSigno, formatearUsdCorto } from '@/lib/formato'
+import { formatearUsd, formatearUsdConSigno } from '@/lib/formato'
 import { etiquetaMes } from '@/lib/periodos'
 
 type Mes = { mes: string; recibido: number; gastado: number }
@@ -26,6 +27,14 @@ const ALTO = 176
  */
 export function GraficoMeses({ meses }: { meses: Mes[] }) {
   const [elegido, setElegido] = useState(meses.length - 1)
+
+  // Con muchos meses el gráfico se desplaza de lado, y lo que interesa es lo
+  // reciente: arranca mostrando el final, donde está el mes elegido.
+  const desplazable = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const caja = desplazable.current
+    if (caja) caja.scrollLeft = caja.scrollWidth
+  }, [meses.length])
   const escala = escalaBonita(0, Math.max(...meses.map((m) => Math.max(m.recibido, m.gastado))))
   const actual = meses[Math.min(elegido, meses.length - 1)]
   const variosAnios = meses[0].mes.slice(0, 4) !== meses.at(-1)!.mes.slice(0, 4)
@@ -67,19 +76,9 @@ export function GraficoMeses({ meses }: { meses: Mes[] }) {
       <div className="flex">
         {/* Eje de montos: fuera de la zona que se desplaza, para que no se
             pierda al mirar los meses del final. */}
-        <div className="relative w-14 shrink-0" style={{ height: ALTO }} aria-hidden>
-          {escala.marcas.map((marca) => (
-            <span
-              key={marca}
-              className="cifras absolute right-2 translate-y-1/2 text-[11px] whitespace-nowrap text-slate-500"
-              style={{ bottom: `${porcentaje(marca, escala.min, escala.max)}%` }}
-            >
-              {formatearUsdCorto(marca)}
-            </span>
-          ))}
-        </div>
+        <EjeMontos escala={escala} alto={ALTO} />
 
-        <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]">
+        <div ref={desplazable} className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:thin]">
           <div className="relative" style={{ minWidth: meses.length * 40 }}>
             {/* Líneas de guía: finas y grises, para que no compitan con las barras. */}
             <div className="pointer-events-none absolute inset-x-0 top-0" style={{ height: ALTO }} aria-hidden>
@@ -112,7 +111,7 @@ export function GraficoMeses({ meses }: { meses: Mes[] }) {
                     className="group flex min-w-10 flex-1 flex-col items-center focus-visible:outline-none"
                   >
                     <span
-                      className={`flex w-full items-end justify-center gap-0.5 rounded-t-lg px-1.5 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-slate-900 ${
+                      className={`flex w-full items-end justify-center gap-0.5 rounded-t-lg px-1.5 transition-colors group-focus-visible:ring-2 group-focus-visible:ring-slate-900 group-focus-visible:ring-inset ${
                         activo ? 'bg-slate-100' : ''
                       }`}
                       style={{ height: ALTO }}

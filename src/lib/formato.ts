@@ -56,12 +56,16 @@ const hastaUnDecimal = new Intl.NumberFormat('es-VE', { maximumFractionDigits: 1
  * Montos cortos para los ejes de los gráficos: "$500", "$1,5 mil", "$2 M".
  * Se escribe a mano porque la notación compacta de `Intl` para es-VE mezcla
  * "K" y "k" según el tamaño, y en un eje eso parece un error.
+ *
+ * El espacio antes de "mil" o "M" es uno que no se parte: una etiqueta de
+ * eje partida en dos líneas ("$1,5" arriba, "mil" abajo) se lee como dos
+ * marcas distintas.
  */
 export function formatearUsdCorto(monto: number): string {
   const signo = monto < 0 ? '−' : ''
   const valor = Math.abs(monto)
-  if (valor >= 1_000_000) return `${signo}$${hastaUnDecimal.format(valor / 1_000_000)} M`
-  if (valor >= 1_000) return `${signo}$${hastaUnDecimal.format(valor / 1_000)} mil`
+  if (valor >= 1_000_000) return `${signo}$${hastaUnDecimal.format(valor / 1_000_000)}\u00a0M`
+  if (valor >= 1_000) return `${signo}$${hastaUnDecimal.format(valor / 1_000)}\u00a0mil`
   return `${signo}$${hastaUnDecimal.format(valor)}`
 }
 

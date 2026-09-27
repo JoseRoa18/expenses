@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, type PointerEvent } from 'react'
+import { EjeMontos } from '@/componentes/graficos/EjeMontos'
 import { escalaBonita, porcentaje } from '@/lib/graficos'
-import { formatearFecha, formatearSaldo, formatearUsdCorto } from '@/lib/formato'
+import { formatearFecha, formatearSaldo } from '@/lib/formato'
 
 type Punto = { fecha: string; saldo: number }
 
@@ -71,17 +72,7 @@ export function GraficoSaldo({ puntos }: { puntos: Punto[] }) {
       </div>
 
       <div className="flex">
-        <div className="relative w-14 shrink-0" style={{ height: ALTO }} aria-hidden>
-          {escala.marcas.map((marca) => (
-            <span
-              key={marca}
-              className="cifras absolute right-2 translate-y-1/2 text-[11px] whitespace-nowrap text-slate-500"
-              style={{ bottom: `${porcentaje(marca, escala.min, escala.max)}%` }}
-            >
-              {formatearUsdCorto(marca)}
-            </span>
-          ))}
-        </div>
+        <EjeMontos escala={escala} alto={ALTO} />
 
         <div className="min-w-0 flex-1">
           <div

@@ -112,10 +112,14 @@ describe('formatearUsdCorto', () => {
   })
 
   it('usa "mil" y "M" siempre igual, sin mezclar K y k', () => {
-    expect(formatearUsdCorto(1000)).toBe('$1 mil')
-    expect(formatearUsdCorto(1500)).toBe('$1,5 mil')
-    expect(formatearUsdCorto(12000)).toBe('$12 mil')
-    expect(formatearUsdCorto(2_000_000)).toBe('$2 M')
+    expect(formatearUsdCorto(1000)).toBe('$1\u00a0mil')
+    expect(formatearUsdCorto(1500)).toBe('$1,5\u00a0mil')
+    expect(formatearUsdCorto(12000)).toBe('$12\u00a0mil')
+    expect(formatearUsdCorto(2_000_000)).toBe('$2\u00a0M')
+  })
+
+  it('el espacio antes de "mil" no deja partir la etiqueta en dos líneas', () => {
+    expect(formatearUsdCorto(1500)).not.toContain(' ')
   })
 
   it('los negativos llevan el signo menos delante del dólar', () => {

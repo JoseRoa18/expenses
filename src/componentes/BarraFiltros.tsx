@@ -299,7 +299,7 @@ function Chips({
   }
 
   // La fila se desplaza de lado, así que el botón elegido puede quedar
-  // fuera de la pantalla ("6 meses" en el resumen, un enlace que llega con
+  // fuera de la pantalla ("Este año", un enlace que llega con
   // "Fechas…"). Se trae a la vista moviendo solo la fila, nunca la página.
   const fila = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
@@ -314,13 +314,20 @@ function Chips({
   }, [elegido])
 
   return (
-    // Se desplaza de lado en vez de partirse en dos filas: así la lista de
-    // abajo empieza siempre a la misma altura, elija lo que se elija.
+    // En el teléfono la fila se desplaza de lado en vez de partirse en dos:
+    // así la lista de abajo empieza siempre a la misma altura. Los bordes se
+    // desvanecen para que el botón a medio salir se lea como "hay más por
+    // aquí" y no como un corte. En una pantalla ancha no hace falta
+    // desplazar nada: los botones bajan a una segunda fila y se ven todos.
+    //
+    // El `py-1` (compensado con `-my-1`) deja sitio arriba y abajo: una fila
+    // que se desplaza de lado también recorta en vertical, y se comía el
+    // contorno de los botones y el anillo del foco.
     <div
       ref={fila}
       role="group"
       aria-label={etiqueta}
-      className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="-mx-4 -my-1 flex gap-2 overflow-x-auto px-4 py-1 [mask-image:linear-gradient(to_right,transparent,#000_1rem,#000_calc(100%_-_1rem),transparent)] [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:gap-1.5 sm:overflow-visible sm:px-0 sm:[mask-image:none] [&::-webkit-scrollbar]:hidden"
     >
       {opciones.map((o) => {
         const activo = o.valor === elegido
@@ -334,10 +341,14 @@ function Chips({
               setElegido(o.valor)
               alElegir(o.valor)
             }}
-            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full px-4 text-sm whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 ${
+            // Borde y no `ring`: el anillo se dibuja por fuera de la caja y
+            // la fila lo recortaba. El peso de la letra es el mismo elegido
+            // o no, para que el botón no cambie de ancho al tocarlo. En
+            // pantalla ancha se usa ratón, no pulgar: van más compactos.
+            className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium whitespace-nowrap transition-colors sm:min-h-9 sm:px-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 ${
               activo
-                ? 'bg-slate-900 font-semibold text-white'
-                : 'bg-white text-slate-700 ring-1 ring-slate-300 active:bg-slate-100'
+                ? 'border-slate-900 bg-slate-900 text-white'
+                : 'border-slate-300 bg-white text-slate-700 active:bg-slate-100'
             }`}
           >
             {o.etiqueta}

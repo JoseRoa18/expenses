@@ -60,8 +60,9 @@ export default async function Resumen({ searchParams }: { searchParams: Promise<
   const sinMovimientos = resumen !== null && resumen.cantidadGastos === 0 && resumen.cantidadAportes === 0
   // Los enlaces a la lista de gastos y a las descargas llevan el mismo
   // período y la misma persona, para que al tocar "3 sin factura" se vean
-  // esos tres. El período va siempre escrito: el resumen arranca en seis
-  // meses y la lista de gastos en "todo", así que callarlo cambiaría la cuenta.
+  // esos tres. El período va siempre escrito aunque hoy las dos pantallas
+  // arranquen en "todo": si una de las dos cambia de período por defecto,
+  // callarlo cambiaría la cuenta sin que nadie lo notara.
   const mismoCorte = {
     periodo: filtros.periodo,
     desde: filtros.desde,
@@ -77,7 +78,7 @@ export default async function Resumen({ searchParams }: { searchParams: Promise<
 
       <ZonaFiltrada>
         <BarraFiltros
-          periodo={{ valor: filtros.periodo, desde: filtros.desde, hasta: filtros.hasta, porDefecto: '6m' }}
+          periodo={{ valor: filtros.periodo, desde: filtros.desde, hasta: filtros.hasta, porDefecto: 'todo' }}
           chips={
             veTodo
               ? [

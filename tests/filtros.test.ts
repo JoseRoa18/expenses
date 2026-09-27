@@ -106,8 +106,8 @@ describe('leer filtros de la dirección', () => {
     expect(leerFiltrosGastos({ q: 'a'.repeat(500) }).q).toHaveLength(100)
   })
 
-  it('el resumen arranca en seis meses', () => {
-    expect(leerFiltrosResumen({}).periodo).toBe('6m')
+  it('el resumen arranca mostrando todo el historial', () => {
+    expect(leerFiltrosResumen({}).periodo).toBe('todo')
   })
 
   it('las solicitudes arrancan en "todas", sin solo urgentes', () => {

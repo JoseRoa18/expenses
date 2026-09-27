@@ -289,9 +289,9 @@ export type FiltrosResumen = FiltroPeriodo & { persona: string | null }
 
 export function leerFiltrosResumen(params: Parametros): FiltrosResumen {
   return {
-    // Seis meses: suficiente para ver una tendencia, y el gráfico mes a mes
-    // cabe entero en la pantalla de un teléfono.
-    ...leerPeriodo(params, '6m'),
+    // Todo el historial, como las listas: el resumen abre con la foto
+    // completa, y desde ahí se acota a un período.
+    ...leerPeriodo(params, 'todo'),
     persona: leerPersona(params, 'persona'),
   }
 }
